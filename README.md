@@ -11,10 +11,10 @@
 ClockwiseNG is a next-generation fork of the original [Clockwise](https://github.com/jnthas/clockwise) project.
 This repository builds on the upstream work and will gradually document the changes, goals, and additions introduced in this fork.
 
-Clockwise was an idea I had while working with 64x64 LED matrices.
+Clockwise is a great idea to work with 64x64 LED matrices.
 These displays are about the size of a wall clock and with the ESP32, besides controlling the content presented on the display we also gain the functionality of 
 WiFi, Bluetooth, touch buttons and other sensors, which gives us basically a smart wall clock. 
-From there I started to develop a platform to create the _Clockfaces_, or skins that the clock can have. The possibilities are many and I hope that with help from contributors, we can grow the options even more.
+From there I started to further develop the platform to create the _Clockfaces_, or skins that the clock can have. 
 
 ### ⏰ New Clockfaces
 Create a new custom Clockface starting from [here](https://github.com/jnthas/cw-cf-0x00) or take a look at the [Clock Club](https://github.com/jnthas/clock-club) and discover how to create new ones using just a JSON file with no coding.
