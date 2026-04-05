@@ -17,7 +17,7 @@ WiFi, Bluetooth, touch buttons and other sensors, which gives us basically a sma
 From there I started to further develop the platform to create the _Clockfaces_, or skins that the clock can have. 
 
 # ToDo:
- - HTTP OTA
+ - Multilanguage support
 
 ## Changelog
 
