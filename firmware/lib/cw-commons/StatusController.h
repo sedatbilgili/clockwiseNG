@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Locator.h>
 #include "picopixel.h"
+#include "../../clockfaces/cw-cf-0x01/gfx/assets.h"
 
 #define ESP32_LED_BUILTIN 2
 
@@ -128,9 +129,60 @@ const uint16_t epd_bitmap_clockwise64[] PROGMEM = {
 
 struct StatusController
 {
+		unsigned long _lastOtaRenderMillis = 0;
+		uint8_t _lastOtaProgress = 255;
+		static const uint8_t OTA_ICON1_WIDTH = 15;
+		static const uint8_t OTA_ICON1_HEIGHT = 16;
+		static const uint8_t OTA_ICON2_WIDTH = 16;
+		static const uint8_t OTA_ICON2_HEIGHT = 15;
+		static const uint8_t OTA_ICON_BOX_X = 24;
+		static const uint8_t OTA_ICON_BOX_Y = 14;
+		static const uint8_t OTA_ICON_BOX_SIZE = 16;
+		static const uint8_t OTA_PROGRESS_BAR_X = 12;
+		static const uint8_t OTA_PROGRESS_BAR_Y = 53;
+		static const uint8_t OTA_PROGRESS_BAR_WIDTH = 40;
+		static const uint8_t OTA_PROGRESS_BAR_HEIGHT = 5;
 
-	static StatusController *getInstance()
-	{
+		void drawOtaIcon(uint8_t frameIndex)
+		{
+			Locator::getDisplay()->fillRect(OTA_ICON_BOX_X, OTA_ICON_BOX_Y, OTA_ICON_BOX_SIZE, OTA_ICON_BOX_SIZE, 0x0000);
+			const bool useFirstFrame = (frameIndex % 2 == 0);
+			const uint16_t *frame = useFirstFrame ? updateIcon1 : updateIcon2;
+			const uint8_t frameWidth = useFirstFrame ? OTA_ICON1_WIDTH : OTA_ICON2_WIDTH;
+			const uint8_t frameHeight = useFirstFrame ? OTA_ICON1_HEIGHT : OTA_ICON2_HEIGHT;
+			const int16_t iconX = OTA_ICON_BOX_X + ((OTA_ICON_BOX_SIZE - frameWidth) / 2);
+			const int16_t iconY = OTA_ICON_BOX_Y + ((OTA_ICON_BOX_SIZE - frameHeight) / 2);
+			Locator::getDisplay()->drawRGBBitmap(iconX, iconY, frame, frameWidth, frameHeight);
+		}
+
+		void drawOtaProgressBar(uint8_t bucket)
+		{
+			const uint8_t filledWidth = (bucket * OTA_PROGRESS_BAR_WIDTH) / 10;
+			Locator::getDisplay()->drawRect(
+				OTA_PROGRESS_BAR_X - 1,
+				OTA_PROGRESS_BAR_Y - 1,
+				OTA_PROGRESS_BAR_WIDTH + 2,
+				OTA_PROGRESS_BAR_HEIGHT + 2,
+				0x7BEF);
+			Locator::getDisplay()->fillRect(
+				OTA_PROGRESS_BAR_X,
+				OTA_PROGRESS_BAR_Y,
+				OTA_PROGRESS_BAR_WIDTH,
+				OTA_PROGRESS_BAR_HEIGHT,
+				0x2104);
+			if (filledWidth > 0)
+			{
+				Locator::getDisplay()->fillRect(
+					OTA_PROGRESS_BAR_X,
+					OTA_PROGRESS_BAR_Y,
+					filledWidth,
+					OTA_PROGRESS_BAR_HEIGHT,
+					0x07E0);
+			}
+		}
+
+		static StatusController *getInstance()
+		{
 		static StatusController base;
 		return &base;
 	}
@@ -154,15 +206,40 @@ struct StatusController
 		printCenter(msg, 61);
 	}
 
-	void ntpConnecting()
-	{
-		Locator::getDisplay()->fillRect(0, 24, 64, 52, 0);
-		Locator::getDisplay()->drawBitmap(16, 24, CW_STATUS_NTP, 32, 32, 0xBCBF);
-		printCenter("NTP Sunucu", 61);
-	}
+		void ntpConnecting()
+		{
+			Locator::getDisplay()->fillRect(0, 24, 64, 52, 0);
+			Locator::getDisplay()->drawBitmap(16, 24, CW_STATUS_NTP, 32, 32, 0xBCBF);
+			printCenter("NTP Sunucu", 61);
+		}
 
-	void printCenter(const char *buf, int y)
-	{
+		void otaUpdating(uint8_t progress)
+		{
+			const uint8_t bucket = min<uint8_t>(10, progress / 10);
+			if (_lastOtaProgress == bucket)
+			{
+				return;
+			}
+
+			if (_lastOtaProgress == 255)
+			{
+				Locator::getDisplay()->fillScreen(0x0000);
+				printCenter("GUNCELLENIYOR", 42);
+			}
+
+			drawOtaIcon(bucket);
+			drawOtaProgressBar(bucket);
+			_lastOtaProgress = bucket;
+		}
+
+		void resetOtaUi()
+		{
+			_lastOtaProgress = 255;
+			_lastOtaRenderMillis = 0;
+		}
+
+		void printCenter(const char *buf, int y)
+		{
 		int16_t x1, y1;
 		uint16_t w, h;
 		Locator::getDisplay()->setFont(&Picopixel);

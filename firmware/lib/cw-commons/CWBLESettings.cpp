@@ -47,6 +47,7 @@ namespace {
     data["screenMode"] = params->screenMode;
     data["character"] = params->characterSelection;
     data["cloudSpeed"] = params->cloudSpeed;
+    data["walkingMario"] = params->walkingMario;
     data["ldrPin"] = params->ldrPin;
     data["posix"] = params->manualPosix;
     data["rotation"] = params->displayRotation;
@@ -73,6 +74,7 @@ namespace {
     if (data.containsKey("screenMode")) params->screenMode = constrain((int)data["screenMode"], 0, 2);
     if (data.containsKey("character")) params->characterSelection = constrain((int)data["character"], 0, 1);
     if (data.containsKey("cloudSpeed")) params->cloudSpeed = constrain((int)data["cloudSpeed"], 1, 30);
+    if (data.containsKey("walkingMario")) params->walkingMario = data["walkingMario"].as<bool>();
     if (data.containsKey("ldrPin")) params->ldrPin = constrain((int)data["ldrPin"], 0, 39);
     if (data.containsKey("posix")) params->manualPosix = data["posix"].as<const char *>();
     if (data.containsKey("rotation")) params->displayRotation = constrain((int)data["rotation"], 0, 3);

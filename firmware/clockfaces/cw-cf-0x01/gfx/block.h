@@ -29,6 +29,7 @@ class Block: public Sprite, public EventTask
     State _lastState = IDLE; 
     uint8_t _lastY;
     uint8_t _firstY;
+    bool _dirty = false;
     
     void idle();
     void hit();
@@ -40,6 +41,7 @@ class Block: public Sprite, public EventTask
     void init();
     void update();
     void redraw();
+    bool consumeDirty();
     void renderTo(Adafruit_GFX *display, int16_t offsetX = 0, int16_t offsetY = 0);
     const char* name();
     void execute(EventType event, Sprite* caller);

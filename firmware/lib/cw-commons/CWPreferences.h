@@ -10,6 +10,7 @@
 struct ClockwiseParams
 {
     Preferences preferences;
+    bool loaded = false;
 
     const char* const PREF_USE_24H_FORMAT = "use24hFormat";
     const char* const PREF_DISPLAY_BRIGHT = "displayBright";
@@ -20,8 +21,6 @@ struct ClockwiseParams
     const char* const PREF_WIFI_SSID = "wifiSsid";
     const char* const PREF_WIFI_PASSWORD = "wifiPwd";
     const char* const PREF_NTP_SERVER = "ntpServer";
-    const char* const PREF_CANVAS_FILE = "canvasFile";
-    const char* const PREF_CANVAS_SERVER = "canvasServer";
     const char* const PREF_MANUAL_POSIX = "manualPosix";
     const char* const PREF_DISPLAY_ROTATION = "displayRotation";
     const char* const PREF_ANIMATION_ENABLED = "animEnabled";
@@ -29,6 +28,7 @@ struct ClockwiseParams
     const char* const PREF_CHARACTER = "charSel";
     const char* const PREF_CLOUD_SPEED = "cloudSpeed";
     const char* const PREF_DYNAMIC_SKY = "dynSky";
+    const char* const PREF_WALKING_MARIO = "walkingMario";
 
     bool use24hFormat;
     uint8_t displayBright;
@@ -39,8 +39,6 @@ struct ClockwiseParams
     String wifiSsid;
     String wifiPwd;
     String ntpServer;
-    String canvasFile;
-    String canvasServer;
     String manualPosix;
     uint8_t displayRotation;
     bool animationEnabled;
@@ -48,10 +46,11 @@ struct ClockwiseParams
     uint8_t characterSelection;
     uint8_t cloudSpeed;
     uint8_t dynamicSkyMode;
+    bool walkingMario = true;
 
 
     ClockwiseParams() {
-        preferences.begin("clockwise", false); 
+        preferences.begin(CW_PREF_DB_NAME, false); 
         //preferences.clear();
     }
 
@@ -63,6 +62,10 @@ struct ClockwiseParams
    
     void save()
     {
+        if (!loaded) {
+            load();
+        }
+
         preferences.putBool(PREF_USE_24H_FORMAT, use24hFormat);
         preferences.putUInt(PREF_DISPLAY_BRIGHT, displayBright);
         preferences.putUInt(PREF_DISPLAY_ABC_MIN, autoBrightMin);
@@ -72,8 +75,6 @@ struct ClockwiseParams
         preferences.putString(PREF_WIFI_SSID, wifiSsid);
         preferences.putString(PREF_WIFI_PASSWORD, wifiPwd);
         preferences.putString(PREF_NTP_SERVER, ntpServer);
-        preferences.putString(PREF_CANVAS_FILE, canvasFile);
-        preferences.putString(PREF_CANVAS_SERVER, canvasServer);
         preferences.putString(PREF_MANUAL_POSIX, manualPosix);
         preferences.putUInt(PREF_DISPLAY_ROTATION, displayRotation);
         preferences.putBool(PREF_ANIMATION_ENABLED, animationEnabled);
@@ -81,10 +82,15 @@ struct ClockwiseParams
         preferences.putUInt(PREF_CHARACTER, characterSelection);
         preferences.putUInt(PREF_CLOUD_SPEED, cloudSpeed);
         preferences.putUInt(PREF_DYNAMIC_SKY, dynamicSkyMode);
+        preferences.putBool(PREF_WALKING_MARIO, walkingMario);
     }
 
-    void load()
+    void load(bool force = false)
     {
+        if (loaded && !force) {
+            return;
+        }
+
         use24hFormat = preferences.getBool(PREF_USE_24H_FORMAT, true);
         displayBright = preferences.getUInt(PREF_DISPLAY_BRIGHT, 16);
         autoBrightMin = preferences.getUInt(PREF_DISPLAY_ABC_MIN, 0);
@@ -94,8 +100,6 @@ struct ClockwiseParams
         wifiSsid = preferences.getString(PREF_WIFI_SSID, "wifi");
         wifiPwd = preferences.getString(PREF_WIFI_PASSWORD, "1234");
         ntpServer = preferences.getString(PREF_NTP_SERVER, "time.google.com");
-        canvasFile = preferences.getString(PREF_CANVAS_FILE, "");
-        canvasServer = preferences.getString(PREF_CANVAS_SERVER, "raw.githubusercontent.com");
         manualPosix = preferences.getString(PREF_MANUAL_POSIX, "");
         displayRotation = preferences.getUInt(PREF_DISPLAY_ROTATION, 0);
         animationEnabled = preferences.getBool(PREF_ANIMATION_ENABLED, true);
@@ -103,6 +107,8 @@ struct ClockwiseParams
         characterSelection = preferences.getUInt(PREF_CHARACTER, 0);
         cloudSpeed = preferences.getUInt(PREF_CLOUD_SPEED, 10);
         dynamicSkyMode = preferences.getUInt(PREF_DYNAMIC_SKY, 0);
+        walkingMario = preferences.getBool(PREF_WALKING_MARIO, true);
+        loaded = true;
     }
 
 };

@@ -1,16 +1,50 @@
 #include "CWDateTime.h"
 
+namespace {
+const char *resolveBuiltInPosix(const char *timeZone)
+{
+  if (timeZone == nullptr)
+  {
+    return nullptr;
+  }
+
+  if (strcmp(timeZone, "Asia/Istanbul") == 0)
+  {
+    return "<+03>-3";
+  }
+
+  if (strcmp(timeZone, "Etc/UTC") == 0 || strcmp(timeZone, "UTC") == 0)
+  {
+    return "UTC0";
+  }
+
+  return nullptr;
+}
+}
+
 void CWDateTime::begin(const char *timeZone, bool use24format, const char *ntpServer = NTP_SERVER, const char *posixTZ = "")
 {
   Serial.printf("[Time] NTP Server: %s, Timezone: %s\n", ntpServer, timeZone);
   ezt::setServer(String(ntpServer));
 
-  if (strlen(posixTZ) > 1) {
+  const char *resolvedPosix = nullptr;
+  if (strlen(posixTZ) > 1)
+  {
+    resolvedPosix = posixTZ;
+  }
+  else
+  {
+    resolvedPosix = resolveBuiltInPosix(timeZone);
+  }
+
+  if (resolvedPosix != nullptr) {
     // An empty value still contains a null character so not empty is a value greater than 1.
     // Set to defined Posix TZ
-    myTZ.setPosix(posixTZ);
+    Serial.printf("[Time] Using POSIX TZ: %s\n", resolvedPosix);
+    myTZ.setPosix(resolvedPosix);
   } else {
     // Use automatic eztime remote lookup
+    Serial.printf("[Time] Using remote timezone lookup for %s\n", timeZone);
     myTZ.setLocation(timeZone);
   }
 

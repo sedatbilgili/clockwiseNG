@@ -12,7 +12,7 @@ ImprovWiFi improvSerial(&Serial);
 struct WiFiController
 {
   long elapsedTimeOffline = 0;
-  bool connectionSucessfulOnce;
+  bool connectionSucessfulOnce = false;
 
   static void startMdnsService()
   {
@@ -170,6 +170,9 @@ struct WiFiController
 
   bool begin()
   {
+    connectionSucessfulOnce = false;
+    elapsedTimeOffline = 0;
+
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
 
@@ -191,7 +194,10 @@ struct WiFiController
       }
 
       StatusController::getInstance()->wifiConnectionFailed("WiFi Ayarlayin");
-      alternativeSetupMethod();
+      if (alternativeSetupMethod())
+      {
+        return true;
+      }
     }
 
     StatusController::getInstance()->wifiConnectionFailed("WiFi Yok!");

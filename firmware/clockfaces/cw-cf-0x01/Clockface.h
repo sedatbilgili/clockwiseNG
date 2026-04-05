@@ -18,6 +18,8 @@
 #include "gfx/mario.h"
 #include "gfx/block.h"
 
+#define CLOCKFACE_NAME "cw-cf-0x01"
+
 class Clockface: public IClockface {
   public:
     static const int16_t SKY_STRIP_Y = 0;
@@ -40,11 +42,16 @@ class Clockface: public IClockface {
     uint8_t _cloud2MoveTick = 0;
     uint8_t _starPaletteIndex[22] = {0};
     int8_t _starTwinkleDirection[22] = {1};
+    uint8_t _groundScrollOffset = 0;
+    uint8_t _worldScrollOffset = 0;
     unsigned long _lastCloudMoveMillis = 0;
+    unsigned long _lastGroundMoveMillis = 0;
     uint16_t _lastSkyColor = SKY_DAY;
     unsigned long _nextCloud1YOffsetMillis = 0;
     unsigned long _nextBushSwayMillis = 0;
     unsigned long _nextStarTwinkleMillis = 0;
+    bool _skyStripDirty = false;
+    bool _landscapeDirty = false;
     bool isNightSky() const;
     uint16_t resolveSkyColor() const;
     void redrawScene();
@@ -52,9 +59,16 @@ class Clockface: public IClockface {
     void drawStars();
     void updateStars();
     void drawBush();
+    void drawHill();
+    void drawPipe();
     void updateBush();
+    void drawGround();
     void drawClouds();
+    void composeSceneRow(int16_t row, uint16_t *rowBuffer, bool includeMario);
+    void redrawLandscapeBand();
+    void redrawMarioArea(int16_t x, int16_t y, int16_t width, int16_t height);
     void updateClouds();
+    void updateGround();
     void updateTime();
 
 };

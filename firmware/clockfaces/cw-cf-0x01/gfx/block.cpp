@@ -20,6 +20,7 @@ void Block::idle()
     _state = IDLE;
 
     _y = _firstY;
+    _dirty = true;
   }
 } 
 
@@ -34,6 +35,7 @@ void Block::hit()
     _lastY = _y;
 
     direction = UP;
+    _dirty = true;
   }
 }
 
@@ -61,6 +63,7 @@ void Block::setText(String text)
 void Block::init()
 {
   Locator::getEventBus()->subscribe(this);
+  _dirty = true;
   redraw();
 }
 
@@ -87,7 +90,7 @@ void Block::update()
 
   if (_state == IDLE && _lastState != _state)
   {
-    redraw();
+    _dirty = true;
     _lastState= _state;
 
   } else if (_state == HIT)
@@ -99,11 +102,8 @@ void Block::update()
       // Serial.print("BLOCK Y = ");
       // Serial.println(_y);
       
-      Locator::getDisplay()->fillRect(_x, _y, _width, _height, getActiveSkyColor());
-      
       _y = _y + (MOVE_PACE * (direction == UP ? -1 : 1));
- 
-      redraw();
+      _dirty = true;
                  
       if (floor(_firstY - _y) >= MAX_MOVE_HEIGHT)
       {
@@ -120,6 +120,13 @@ void Block::update()
     }
 
   }
+}
+
+bool Block::consumeDirty()
+{
+  bool wasDirty = _dirty;
+  _dirty = false;
+  return wasDirty;
 }
 
 

@@ -1,9 +1,14 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+#include <HTTPClient.h>
+#include <Update.h>
+#include <WiFiClientSecure.h>
+#include <new>
+#include "esp_bt.h"
 
 // Clockface
-#include <Clockface.h>
+#include "Clockface.h"
 // Commons
 #include <WiFiController.h>
 #include <CWDateTime.h>
@@ -19,6 +24,10 @@
 
 #ifndef CW_DEBUG_HUB75_PINS
 #define CW_DEBUG_HUB75_PINS 0
+#endif
+
+#ifndef CW_DEBUG_OTA
+#define CW_DEBUG_OTA 1
 #endif
 
 #define SCREEN_AUTO 0
@@ -37,39 +46,323 @@ bool screenModeChange = false;
 #define BRIGHTNESS_STEPS 10
 #define AUTO_BRIGHT_STEP_HYSTERESIS 24
 
-MatrixPanel_I2S_DMA *dma_display = nullptr;
-
-Clockface *clockface;
+static MatrixPanel_I2S_DMA *dma_display = nullptr;
+static Clockface *clockface = nullptr;
+alignas(MatrixPanel_I2S_DMA) static uint8_t dmaDisplayStorage[sizeof(MatrixPanel_I2S_DMA)];
+alignas(Clockface) static uint8_t clockfaceStorage[sizeof(Clockface)];
+static bool dmaDisplayConstructed = false;
+static bool clockfaceConstructed = false;
 
 WiFiController wifi;
 CWDateTime cwDateTime;
+volatile bool otaInProgress = false;
+volatile uint8_t otaProgress = 0;
+static unsigned long otaLastProgressMillis = 0;
+static unsigned long otaLastProgressLogMillis = 0;
+static uint8_t otaLastRenderedProgress = 255;
+static unsigned long otaLastRenderMillis = 0;
+static unsigned long otaStartMillis = 0;
+static unsigned long otaLastStallLogMillis = 0;
+static uint8_t otaLastLoggedProgress = 255;
+static const unsigned long OTA_RENDER_INTERVAL_MS = 80UL;
 
 long autoBrightMillis = 0;
 uint8_t currentBrightness = 0;
 uint8_t targetBrightness = 0;
+static const unsigned long CLOCKFACE_UPDATE_INTERVAL_MS = 33UL;
+static unsigned long lastClockfaceUpdateMillis = 0;
+static const unsigned long EZT_EVENTS_INTERVAL_MS = 100UL;
+static unsigned long lastEztEventsMillis = 0;
+
+static void prepareForOta()
+{
+  ClockwiseWebServer::getInstance()->stopWebServer();
+  MDNS.end();
+}
+
+static void renderOtaProgressIfNeeded(bool force = false)
+{
+  if (!otaInProgress)
+  {
+    return;
+  }
+
+  const uint8_t bucket = min<uint8_t>(10, otaProgress / 10);
+  const unsigned long now = millis();
+  if (!force)
+  {
+    if (bucket == otaLastRenderedProgress)
+    {
+      return;
+    }
+
+    if (now - otaLastRenderMillis < OTA_RENDER_INTERVAL_MS)
+    {
+      return;
+    }
+  }
+
+  StatusController::getInstance()->otaUpdating(otaProgress);
+  otaLastRenderedProgress = bucket;
+  otaLastRenderMillis = now;
+}
+
+static void renderOtaProgressBucketIfChanged()
+{
+  if (!otaInProgress)
+  {
+    return;
+  }
+
+  const uint8_t bucket = min<uint8_t>(10, otaProgress / 10);
+  if (bucket == otaLastRenderedProgress)
+  {
+    return;
+  }
+
+  StatusController::getInstance()->otaUpdating(otaProgress);
+  otaLastRenderedProgress = bucket;
+  otaLastRenderMillis = millis();
+}
 
 static void setupArduinoOta()
 {
   ArduinoOTA.setHostname("clockwise");
 
   ArduinoOTA.onStart([]() {
-    Serial.println("[OTA] Update started");
+    otaInProgress = true;
+    otaProgress = 0;
+    otaStartMillis = millis();
+    otaLastProgressMillis = millis();
+    otaLastProgressLogMillis = millis();
+    otaLastRenderMillis = 0;
+    otaLastStallLogMillis = millis();
+    otaLastRenderedProgress = 255;
+    otaLastLoggedProgress = 255;
+    prepareForOta();
+    StatusController::getInstance()->resetOtaUi();
+    renderOtaProgressIfNeeded(true);
+#if CW_DEBUG_OTA
+    Serial.printf("[OTA] start | freeHeap=%u | rssi=%d\n",
+      static_cast<unsigned int>(ESP.getFreeHeap()),
+      WiFi.RSSI());
+#endif
   });
 
   ArduinoOTA.onEnd([]() {
-    Serial.println("\n[OTA] Update finished");
+    otaInProgress = false;
+    otaProgress = 100;
+#if CW_DEBUG_OTA
+    Serial.printf("[OTA] end | duration=%lu ms | freeHeap=%u | rssi=%d\n",
+      millis() - otaStartMillis,
+      static_cast<unsigned int>(ESP.getFreeHeap()),
+      WiFi.RSSI());
+#endif
   });
 
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("[OTA] Progress: %u%%\r", (progress * 100U) / total);
+    otaProgress = (progress * 100U) / total;
+    unsigned long now = millis();
+    unsigned long delta = now - otaLastProgressMillis;
+    otaLastProgressMillis = now;
+    renderOtaProgressBucketIfChanged();
+
+#if CW_DEBUG_OTA
+    bool shouldLog = false;
+    if (otaLastLoggedProgress == 255)
+    {
+      shouldLog = true;
+    }
+    else if (otaProgress >= otaLastLoggedProgress + 5)
+    {
+      shouldLog = true;
+    }
+    else if (now - otaLastProgressLogMillis >= 3000)
+    {
+      shouldLog = true;
+    }
+
+    if (shouldLog)
+    {
+      otaLastProgressLogMillis = now;
+      otaLastLoggedProgress = otaProgress;
+      Serial.printf("[OTA] progress=%u%% | delta=%lu ms | elapsed=%lu ms | freeHeap=%u | rssi=%d\n",
+        static_cast<unsigned int>(otaProgress),
+        delta,
+        now - otaStartMillis,
+        static_cast<unsigned int>(ESP.getFreeHeap()),
+        WiFi.RSSI());
+    }
+#endif
   });
 
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA] Error[%u]\n", error);
+    otaInProgress = false;
+#if CW_DEBUG_OTA
+    Serial.printf("[OTA] error=%u | elapsed=%lu ms | freeHeap=%u | rssi=%d\n",
+      static_cast<unsigned int>(error),
+      millis() - otaStartMillis,
+      static_cast<unsigned int>(ESP.getFreeHeap()),
+      WiFi.RSSI());
+#endif
+    ESP.restart();
   });
 
   ArduinoOTA.begin();
-  Serial.println("[OTA] Ready");
+#if CW_DEBUG_OTA
+  Serial.println("[OTA] ready");
+#endif
+}
+
+template <typename TClient>
+static bool downloadAndApplyHttpOta(TClient &netClient, const String &url)
+{
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+
+#if CW_DEBUG_WEB_FREEZE
+  unsigned long downloadStart = millis();
+  Serial.printf("[HTTP OTA] begin: %s\n", url.c_str());
+#endif
+
+  if (!http.begin(netClient, url))
+  {
+    Serial.println("[HTTP OTA] Failed to begin request");
+    return false;
+  }
+
+  int httpCode = http.GET();
+#if CW_DEBUG_WEB_FREEZE
+  Serial.printf("[HTTP OTA] GET code: %d\n", httpCode);
+#endif
+  if (httpCode != HTTP_CODE_OK)
+  {
+    Serial.printf("[HTTP OTA] GET failed, code=%d\n", httpCode);
+    http.end();
+    return false;
+  }
+
+  int contentLength = http.getSize();
+#if CW_DEBUG_WEB_FREEZE
+  Serial.printf("[HTTP OTA] content-length: %d\n", contentLength);
+#endif
+  if (!Update.begin(contentLength > 0 ? contentLength : UPDATE_SIZE_UNKNOWN))
+  {
+    Serial.println("[HTTP OTA] Update.begin failed");
+    http.end();
+    return false;
+  }
+
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t buffer[1024];
+  size_t totalWritten = 0;
+  unsigned long lastActivityMillis = millis();
+  unsigned long lastProgressLogMillis = millis();
+
+  while (http.connected() && (contentLength > 0 || contentLength == -1))
+  {
+    size_t availableBytes = stream->available();
+    if (availableBytes > 0)
+    {
+      size_t chunkSize = min(availableBytes, sizeof(buffer));
+      int bytesRead = stream->readBytes(buffer, chunkSize);
+      if (bytesRead <= 0)
+      {
+        Serial.println("[HTTP OTA] Stream read failed");
+        Update.abort();
+        http.end();
+        return false;
+      }
+
+      size_t bytesWritten = Update.write(buffer, bytesRead);
+      if (bytesWritten != static_cast<size_t>(bytesRead))
+      {
+        Serial.println("[HTTP OTA] Update.write failed");
+        Update.abort();
+        http.end();
+        return false;
+      }
+
+      totalWritten += bytesWritten;
+      lastActivityMillis = millis();
+
+      if (contentLength > 0)
+      {
+        contentLength -= bytesRead;
+        otaProgress = static_cast<uint8_t>((totalWritten * 100U) / (totalWritten + contentLength));
+      }
+
+      renderOtaProgressIfNeeded();
+
+#if CW_DEBUG_WEB_FREEZE
+      if (millis() - lastProgressLogMillis >= 500)
+      {
+        Serial.printf("[HTTP OTA] written=%u progress=%u%%\n",
+          static_cast<unsigned int>(totalWritten),
+          static_cast<unsigned int>(otaProgress));
+        lastProgressLogMillis = millis();
+      }
+#endif
+    }
+    else
+    {
+      if (millis() - lastActivityMillis > 5000)
+      {
+        Serial.println("[HTTP OTA] Download timeout");
+        Update.abort();
+        http.end();
+        return false;
+      }
+      delay(1);
+    }
+  }
+
+  bool success = Update.end() && Update.isFinished();
+  if (!success)
+  {
+    Serial.printf("[HTTP OTA] Update.end failed. error=%u\n", Update.getError());
+  }
+#if CW_DEBUG_WEB_FREEZE
+  else
+  {
+    Serial.printf("[HTTP OTA] finished successfully in %lu ms, bytes=%u\n",
+      millis() - downloadStart,
+      static_cast<unsigned int>(totalWritten));
+  }
+#endif
+
+  http.end();
+  return success;
+}
+
+static bool performHttpOta(const String &url)
+{
+  otaInProgress = true;
+  otaProgress = 0;
+  otaLastRenderMillis = 0;
+  otaLastRenderedProgress = 255;
+  prepareForOta();
+  StatusController::getInstance()->resetOtaUi();
+  renderOtaProgressIfNeeded(true);
+  Serial.printf("[HTTP OTA] Starting from URL: %s\n", url.c_str());
+
+  bool success = false;
+  if (url.startsWith("https://"))
+  {
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure();
+    success = downloadAndApplyHttpOta(secureClient, url);
+  }
+  else
+  {
+    WiFiClient client;
+    success = downloadAndApplyHttpOta(client, url);
+  }
+
+  otaProgress = success ? 100 : otaProgress;
+  Serial.printf("[HTTP OTA] Result: %s\n", success ? "success" : "failure");
+  ESP.restart();
+  return success;
 }
 
 static void printHub75Pins(const HUB75_I2S_CFG &mxconfig)
@@ -119,7 +412,11 @@ void displaySetup(uint8_t displayBright, uint8_t displayRotation)
 
   printHub75Pins(mxconfig);
 
-  dma_display = new MatrixPanel_I2S_DMA(mxconfig);
+  if (!dmaDisplayConstructed)
+  {
+    dma_display = new (dmaDisplayStorage) MatrixPanel_I2S_DMA(mxconfig);
+    dmaDisplayConstructed = true;
+  }
   dma_display->begin();
   dma_display->setBrightness8(displayBright);
   currentBrightness = displayBright;
@@ -247,6 +544,8 @@ void automaticBrightControl()
 void setup()
 {
   Serial.begin(115200);
+  esp_bt_controller_disable();
+  esp_bt_controller_deinit();
   pinMode(ESP32_LED_BUILTIN, OUTPUT);
 
 #if CW_PANEL_TYPE == OGUZALI_PANEL
@@ -264,7 +563,11 @@ void setup()
   pinMode(ClockwiseParams::getInstance()->ldrPin, INPUT);
 
   displaySetup(ClockwiseParams::getInstance()->displayBright, ClockwiseParams::getInstance()->displayRotation);
-  clockface = new Clockface(dma_display);
+  if (!clockfaceConstructed)
+  {
+    clockface = new (clockfaceStorage) Clockface(dma_display);
+    clockfaceConstructed = true;
+  }
 
 
   StatusController::getInstance()->clockwiseLogo();
@@ -285,18 +588,86 @@ void setup()
 
 void loop()
 {
-  wifi.handleImprovWiFi();
+  String pendingHttpOtaUrl = ClockwiseWebServer::getInstance()->consumePendingHttpOtaUrl();
+  if (pendingHttpOtaUrl.length() > 0 && wifi.isConnected() && !otaInProgress)
+  {
+#if CW_DEBUG_WEB_FREEZE
+    Serial.printf("[HTTP OTA] queued URL consumed: %s\n", pendingHttpOtaUrl.c_str());
+#endif
+    performHttpOta(pendingHttpOtaUrl);
+    return;
+  }
 
   if (wifi.isConnected())
   {
     ArduinoOTA.handle();
-    ClockwiseWebServer::getInstance()->handleHttpRequest();
-    ezt::events();
   }
 
-  if (wifi.connectionSucessfulOnce)
+  if (otaInProgress)
   {
-    clockface->update();
+    renderOtaProgressIfNeeded();
+#if CW_DEBUG_OTA
+    unsigned long now = millis();
+    if (now - otaLastProgressMillis >= 3000 && now - otaLastStallLogMillis >= 3000)
+    {
+      otaLastStallLogMillis = now;
+      Serial.printf("[OTA] waiting... | progress=%u%% | idle=%lu ms | elapsed=%lu ms | freeHeap=%u | rssi=%d\n",
+        static_cast<unsigned int>(otaProgress),
+        now - otaLastProgressMillis,
+        now - otaStartMillis,
+        static_cast<unsigned int>(ESP.getFreeHeap()),
+        WiFi.RSSI());
+    }
+#endif
+    return;
+  }
+
+  wifi.handleImprovWiFi();
+
+  if (wifi.isConnected())
+  {
+    unsigned long webLoopStart = millis();
+    unsigned long httpStart = millis();
+    ClockwiseWebServer::getInstance()->handleHttpRequest();
+    unsigned long httpDuration = millis() - httpStart;
+
+    unsigned long eztDuration = 0;
+    unsigned long now = millis();
+    if (now - lastEztEventsMillis >= EZT_EVENTS_INTERVAL_MS)
+    {
+      lastEztEventsMillis = now;
+      unsigned long eztStart = millis();
+      ezt::events();
+      eztDuration = millis() - eztStart;
+    }
+#if CW_DEBUG_WEB_FREEZE
+    unsigned long webDuration = millis() - webLoopStart;
+    if (webDuration >= 100)
+    {
+      Serial.printf("[PERF] web loop took %lu ms | http=%lu ms | ezt=%lu ms\n",
+        webDuration,
+        httpDuration,
+        eztDuration);
+    }
+#endif
+  }
+
+  if (wifi.connectionSucessfulOnce && clockface != nullptr)
+  {
+    unsigned long now = millis();
+    if (now - lastClockfaceUpdateMillis >= CLOCKFACE_UPDATE_INTERVAL_MS)
+    {
+      lastClockfaceUpdateMillis = now;
+      unsigned long clockfaceStart = millis();
+      clockface->update();
+#if CW_DEBUG_WEB_FREEZE
+      unsigned long clockfaceDuration = millis() - clockfaceStart;
+      if (clockfaceDuration >= 40)
+      {
+        Serial.printf("[PERF] clockface->update() took %lu ms\n", clockfaceDuration);
+      }
+#endif
+    }
   }
 
   uint8_t desiredScreenMode = ClockwiseParams::getInstance()->screenMode;

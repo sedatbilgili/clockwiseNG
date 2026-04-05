@@ -16,6 +16,92 @@ These displays are about the size of a wall clock and with the ESP32, besides co
 WiFi, Bluetooth, touch buttons and other sensors, which gives us basically a smart wall clock. 
 From there I started to further develop the platform to create the _Clockfaces_, or skins that the clock can have. 
 
+# ToDo:
+ - HTTP OTA
+
+## Changelog
+
+# 2.8.3:
+
+- A startup rendering bug affecting `PIPE_SPRITE` was fixed so the pipe now appears immediately on boot, including when animations are disabled.
+
+# 2.8.2:
+
+- The OTA workflow was improved for both ArduinoOTA and HTTP OTA paths.
+- OTA preparation now more cleanly suspends conflicting runtime services before flashing.
+- OTA progress state tracking was improved with more explicit runtime state and diagnostics.
+- A dedicated OTA screen was added with update messaging and icon support.
+- A progress bar was added to the OTA screen and it advances in `%10` steps.
+- The OTA icon animation was redesigned to use fixed frames instead of runtime rotation for lower rendering cost.
+- Support for multiple update icons was added, including correct handling of their different dimensions.
+- OTA rendering was reworked so progress visualization does not unnecessarily slow down the update process.
+- General display update timing and runtime behavior were tuned to better balance rendering, web activity, and OTA stability.
+
+# 2.8.1:
+
+- Timezone handling was made more deterministic by adding built-in POSIX mappings.
+- `Asia/Istanbul` now uses a local POSIX timezone mapping instead of relying on remote lookup behavior.
+- `UTC` and `Etc/UTC` were also mapped locally for consistency.
+
+# 2.8.0:
+
+- The Wi-Fi startup flow was fixed so a successful captive portal or alternative setup path now counts as a real successful connection.
+- Uninitialized runtime flags in the Wi-Fi and web layers were corrected to avoid random restart and state issues.
+- Preferences loading was optimized with an in-memory cache to reduce repeated NVS reads.
+- The preferences namespace handling was corrected so the configured database name is actually used.
+- The web server was refactored away from the old manual socket and HTTP parsing approach to the built-in ESP32 `WebServer` model.
+- Several blocking request-handling paths were removed, improving general web responsiveness and reducing freeze risk.
+- Request body handling and response generation were simplified to reduce `String` churn and heap pressure.
+- The settings page script was moved into the firmware and is now served directly by the device instead of an external IP.
+- Cache behavior for the settings UI and JSON endpoints was tightened to reduce stale frontend state.
+- The settings page pin read flow was fixed so repeated reads work more reliably.
+- Repeated `/read` requests were hardened against caching and overlapping XHR issues.
+- The active firmware was simplified to the Mario clockface only.
+- The unused canvas clockface and its related assets, settings, and helper code were removed.
+- Unused canvas-related dependencies were cleaned out of the build.
+- Display and clockface lifetime management was moved away from heap allocation to static storage with placement new.
+  - This reduced fragmentation risk, especially around OTA and long-running uptime.
+
+# 2.7.4:
+
+- Rendering performance was adjusted to target a lower frame rate for improved stability.
+- The display update loop was tuned from roughly `50 FPS` down to approximately `30 FPS`.
+- This change was made to reduce rendering load while animations are active and to improve overall responsiveness.
+
+# 2.7.3:
+
+- The virtual scene width was expanded to allow a longer side-scrolling layout.
+- A new pipe element was added to the scrolling scene.
+- Scene object placement was adjusted to fit the new virtual world layout.
+- Background composition was updated so the new pipe, hill, and bush elements all participate in the scrolling world consistently.
+
+# 2.7.2:
+
+- The Mario-themed scene has been significantly refreshed and made more dynamic.
+- A new walking animation for Mario has been added.
+- Mario’s classic jump animation at the start of each minute, where he hits the blocks, has been preserved and improved.
+- The walking animation and the minute-change jump animation now work together more smoothly.
+- Background scenery elements were also made animated to create a more lively moving scene.
+- The overall background layout has been updated with new artwork.
+- The scene composition was reworked around a wider virtual world layout.
+- Layering between Mario, the background, and foreground elements has been improved.
+- Masked and transparent-looking pixels now blend into the scene more correctly.
+- Several rendering artifacts and layering issues around Mario were fixed.
+- Hill rendering issues, including movement-related shifting and edge artifacts, were fixed.
+- Small visual glitches in the block-hit animation were reduced.
+- A new web setting was added to enable or disable Mario’s walking animation.
+- Mario walking is now automatically unavailable when general animations are disabled.
+- The OTA update flow was reworked and made more robust.
+- During OTA updates, unnecessary runtime workload is suspended to keep the update process cleaner.
+- The OTA screen was simplified into a cleaner update view.
+- OTA failure handling was improved so the device can recover more reliably by restarting.
+- Performance improvements were made to help the system stay more stable while animations and the web interface are active at the same time.
+- The display update pipeline was optimized to reduce rendering load and limit freezes.
+- Several redraw and compositing improvements were made to reduce flicker.
+- Overall, the Mario-themed firmware experience is now more polished, more animated, and better controlled in terms of system behavior.
+
+
+
 ### ⏰ New Clockfaces
 Create a new custom Clockface starting from [here](https://github.com/jnthas/cw-cf-0x00) or take a look at the [Clock Club](https://github.com/jnthas/clock-club) and discover how to create new ones using just a JSON file with no coding.
 
