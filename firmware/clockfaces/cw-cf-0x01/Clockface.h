@@ -46,12 +46,15 @@ class Clockface: public IClockface {
     uint8_t _worldScrollOffset = 0;
     unsigned long _lastCloudMoveMillis = 0;
     unsigned long _lastGroundMoveMillis = 0;
+    unsigned long _lastGoombaFrameMillis = 0;
     uint16_t _lastSkyColor = SKY_DAY;
     unsigned long _nextCloud1YOffsetMillis = 0;
     unsigned long _nextBushSwayMillis = 0;
     unsigned long _nextStarTwinkleMillis = 0;
     bool _skyStripDirty = false;
     bool _landscapeDirty = false;
+    uint8_t _goombaWalkFrame = 0;
+    bool _lastGoombaEnabled = true;
     bool isNightSky() const;
     uint16_t resolveSkyColor() const;
     void redrawScene();
@@ -69,6 +72,7 @@ class Clockface: public IClockface {
     void redrawMarioArea(int16_t x, int16_t y, int16_t width, int16_t height);
     void updateClouds();
     void updateGround();
+    bool updateGoombaAnimation();
     void updateTime();
 
 };

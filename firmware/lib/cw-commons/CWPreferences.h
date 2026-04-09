@@ -1,16 +1,47 @@
 #pragma once
 
+#include <ArduinoJson.h>
 #include <Preferences.h>
 
 #ifndef CW_PREF_DB_NAME
     #define CW_PREF_DB_NAME "clockwise"
 #endif
 
-
 struct ClockwiseParams
 {
+    struct ApplySettingsReport
+    {
+        bool anyChanged = false;
+        bool restartRequired = false;
+        bool hotApplied = false;
+    };
+
     Preferences preferences;
     bool loaded = false;
+
+    static constexpr bool DEFAULT_USE_24H_FORMAT = true;
+    static constexpr uint32_t DEFAULT_DISPLAY_BRIGHT = 16;
+    static constexpr uint32_t DEFAULT_AUTO_BRIGHT_MIN = 0;
+    static constexpr uint32_t DEFAULT_AUTO_BRIGHT_MAX = 4095;
+    static constexpr uint32_t DEFAULT_LDR_PIN = 34;
+    static constexpr const char *DEFAULT_TIME_ZONE = "Asia/Istanbul";
+    static constexpr const char *DEFAULT_WIFI_SSID = "wifi";
+    static constexpr const char *DEFAULT_WIFI_PASSWORD = "1234";
+    static constexpr const char *DEFAULT_NTP_SERVER = "time.google.com";
+    static constexpr const char *DEFAULT_MANUAL_POSIX = "";
+    static constexpr uint32_t DEFAULT_DISPLAY_ROTATION = 0;
+    static constexpr bool DEFAULT_ANIMATION_ENABLED = true;
+    static constexpr uint32_t DEFAULT_SCREEN_MODE = 0;
+    static constexpr uint32_t DEFAULT_CHARACTER = 0;
+    static constexpr uint32_t DEFAULT_CLOUD_SPEED = 10;
+    static constexpr uint32_t DEFAULT_DYNAMIC_SKY = 0;
+    static constexpr bool DEFAULT_WALKING_MARIO = true;
+    static constexpr bool DEFAULT_GOOMBA_ENABLED = true;
+    static constexpr size_t TIME_ZONE_CAPACITY = 64;
+    static constexpr size_t WIFI_SSID_CAPACITY = 64;
+    static constexpr size_t WIFI_PASSWORD_CAPACITY = 64;
+    static constexpr size_t NTP_SERVER_CAPACITY = 64;
+    static constexpr size_t MANUAL_POSIX_CAPACITY = 96;
 
     const char* const PREF_USE_24H_FORMAT = "use24hFormat";
     const char* const PREF_DISPLAY_BRIGHT = "displayBright";
@@ -29,17 +60,18 @@ struct ClockwiseParams
     const char* const PREF_CLOUD_SPEED = "cloudSpeed";
     const char* const PREF_DYNAMIC_SKY = "dynSky";
     const char* const PREF_WALKING_MARIO = "walkingMario";
+    const char* const PREF_GOOMBA_ENABLED = "goombaEnabled";
 
     bool use24hFormat;
     uint8_t displayBright;
     uint16_t autoBrightMin;
     uint16_t autoBrightMax;
     uint8_t ldrPin;
-    String timeZone;
-    String wifiSsid;
-    String wifiPwd;
-    String ntpServer;
-    String manualPosix;
+    char timeZone[TIME_ZONE_CAPACITY] = {0};
+    char wifiSsid[WIFI_SSID_CAPACITY] = {0};
+    char wifiPwd[WIFI_PASSWORD_CAPACITY] = {0};
+    char ntpServer[NTP_SERVER_CAPACITY] = {0};
+    char manualPosix[MANUAL_POSIX_CAPACITY] = {0};
     uint8_t displayRotation;
     bool animationEnabled;
     uint8_t screenMode;
@@ -47,68 +79,44 @@ struct ClockwiseParams
     uint8_t cloudSpeed;
     uint8_t dynamicSkyMode;
     bool walkingMario = true;
+    bool goombaEnabled = true;
 
 
-    ClockwiseParams() {
-        preferences.begin(CW_PREF_DB_NAME, false); 
-        //preferences.clear();
-    }
+    ClockwiseParams();
 
-    static ClockwiseParams* getInstance() {
-        static ClockwiseParams base;
-        return &base;
-    }
+    static ClockwiseParams* getInstance();
+
+    static void copyText(char *dest, size_t destSize, const char *src);
+
+    void setTimeZone(const char *value);
+
+    void setWifiSsid(const char *value);
+
+    void setWifiPwd(const char *value);
+
+    void setNtpServer(const char *value);
+
+    void setManualPosix(const char *value);
+
+    void appendSettingsJson(JsonDocument &doc) const;
+    void appendSettingsSchemaJson(JsonDocument &doc) const;
+
+    bool isKnownApiSettingKey(const char *key) const;
+    bool isRestartRequiredSettingKey(const char *key) const;
+
+    bool applySettingsJson(JsonObjectConst data, const char *&error, ApplySettingsReport *report = nullptr);
+
+    static bool isValidAutoBrightnessRange(uint16_t minValue, uint16_t maxValue);
+
+    bool putBoolIfChanged(const char *key, bool value, bool defaultValue);
+
+    bool putUIntIfChanged(const char *key, uint32_t value, uint32_t defaultValue);
+
+    bool putStringIfChanged(const char *key, const char *value, const char *defaultValue, size_t bufferSize);
 
    
-    void save()
-    {
-        if (!loaded) {
-            load();
-        }
+    void save();
 
-        preferences.putBool(PREF_USE_24H_FORMAT, use24hFormat);
-        preferences.putUInt(PREF_DISPLAY_BRIGHT, displayBright);
-        preferences.putUInt(PREF_DISPLAY_ABC_MIN, autoBrightMin);
-        preferences.putUInt(PREF_DISPLAY_ABC_MAX, autoBrightMax);
-        preferences.putUInt(PREF_LDR_PIN, ldrPin);        
-        preferences.putString(PREF_TIME_ZONE, timeZone);
-        preferences.putString(PREF_WIFI_SSID, wifiSsid);
-        preferences.putString(PREF_WIFI_PASSWORD, wifiPwd);
-        preferences.putString(PREF_NTP_SERVER, ntpServer);
-        preferences.putString(PREF_MANUAL_POSIX, manualPosix);
-        preferences.putUInt(PREF_DISPLAY_ROTATION, displayRotation);
-        preferences.putBool(PREF_ANIMATION_ENABLED, animationEnabled);
-        preferences.putUInt(PREF_SCREEN_MODE, screenMode);
-        preferences.putUInt(PREF_CHARACTER, characterSelection);
-        preferences.putUInt(PREF_CLOUD_SPEED, cloudSpeed);
-        preferences.putUInt(PREF_DYNAMIC_SKY, dynamicSkyMode);
-        preferences.putBool(PREF_WALKING_MARIO, walkingMario);
-    }
-
-    void load(bool force = false)
-    {
-        if (loaded && !force) {
-            return;
-        }
-
-        use24hFormat = preferences.getBool(PREF_USE_24H_FORMAT, true);
-        displayBright = preferences.getUInt(PREF_DISPLAY_BRIGHT, 16);
-        autoBrightMin = preferences.getUInt(PREF_DISPLAY_ABC_MIN, 0);
-        autoBrightMax = preferences.getUInt(PREF_DISPLAY_ABC_MAX, 4095);
-        ldrPin = preferences.getUInt(PREF_LDR_PIN, 34);        
-        timeZone = preferences.getString(PREF_TIME_ZONE, "Asia/Istanbul");
-        wifiSsid = preferences.getString(PREF_WIFI_SSID, "wifi");
-        wifiPwd = preferences.getString(PREF_WIFI_PASSWORD, "1234");
-        ntpServer = preferences.getString(PREF_NTP_SERVER, "time.google.com");
-        manualPosix = preferences.getString(PREF_MANUAL_POSIX, "");
-        displayRotation = preferences.getUInt(PREF_DISPLAY_ROTATION, 0);
-        animationEnabled = preferences.getBool(PREF_ANIMATION_ENABLED, true);
-        screenMode = preferences.getUInt(PREF_SCREEN_MODE, 0);
-        characterSelection = preferences.getUInt(PREF_CHARACTER, 0);
-        cloudSpeed = preferences.getUInt(PREF_CLOUD_SPEED, 10);
-        dynamicSkyMode = preferences.getUInt(PREF_DYNAMIC_SKY, 0);
-        walkingMario = preferences.getBool(PREF_WALKING_MARIO, true);
-        loaded = true;
-    }
+    void load(bool force = false);
 
 };

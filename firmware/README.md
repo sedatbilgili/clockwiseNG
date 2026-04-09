@@ -1,11 +1,3 @@
-> ![News 90s GIF](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/news.gif)[2024-04-21] [Version 1.4.2 released!](https://github.com/jnthas/clockwise/releases/tag/v1.4.2) Check the [change log](https://github.com/jnthas/clockwise/blob/main/CHANGELOG.md#142---2024-04-21) to see the fixes and new features added. Be part of the [Clock Club](https://github.com/jnthas/clock-club) and create your own clockface using Canvas.
-
-[![Clockwise CI/CD](https://github.com/jnthas/clockwise/actions/workflows/clockwise-ci.yml/badge.svg)](https://github.com/jnthas/clockwise/actions/workflows/clockwise-ci.yml)
-
-![Logo](https://github.com/jnthas/clockwise/blob/gh-pages/static/images/clockwise_logo.png "Logo")
-
-> The DIY smart wall clock device
-
 ## ClockwiseNG
 
 ClockwiseNG is a next-generation fork of the original [Clockwise](https://github.com/jnthas/clockwise) project.
@@ -16,12 +8,101 @@ These displays are about the size of a wall clock and with the ESP32, besides co
 WiFi, Bluetooth, touch buttons and other sensors, which gives us basically a smart wall clock. 
 From there I started to further develop the platform to create the _Clockfaces_, or skins that the clock can have. 
 
+
 # ToDo:
  - Multilanguage support
- - API documentation
+ - API documentation improvements
  - Hardware documentation
 
+## Documentation
+
+- Web API: [API_README.MD](API_README.MD)
+
 ## Changelog
+
+# v3.2.3
+
+This release focuses on Goomba control, web settings stability, and API/web documentation alignment.
+
+- Added new `goombaEnabled` setting to API and web settings UI so Goomba drawing can be toggled on/off at runtime.
+- Updated Mario clockface render flow so Goomba is not drawn at all when disabled, including safe redraw/cleanup when the toggle changes.
+- Reduced Goomba render size from `16x16` to `8x8` to match the updated sprite set.
+- Improved settings page state parsing for animation toggles (`animationEnabled`, `walkingMario`, `goombaEnabled`) to better handle key/value format differences.
+- Fixed web settings load failures by increasing JSON response/schema capacities and reducing stack pressure in JSON response/schema handling.
+- Updated API documentation examples and settings reference with `goombaEnabled` usage examples.
+
+This release is a patch-level feature and stability update on top of v3.2.2.
+
+# v3.2.2
+
+This release focuses on OTA status UI polish and progress feedback consistency.
+
+- Replaced alternating OTA update icon frames with the new single `updateIcon` (16x16) asset.
+- Added 90-degree OTA icon rotation on each progress bucket step to keep update activity visually clear while using a single icon asset.
+- Adjusted OTA progress bar horizontal placement after the width increase so the bar is centered again on the display.
+- Reduced browser upload progress status noise by updating the web UI message at `%10` intervals instead of continuously/randomly.
+
+This release is a patch-level OTA UI and UX refinement update on top of v3.2.1.
+
+# v3.2.1
+
+This release focuses on display mode UX polish and OTA progress UI alignment improvements.
+
+- Added a temporary screen mode icon overlay shown for 10 seconds after mode changes, positioned near the top-left corner of the display.
+- Added support for the new `onIcon` and `autoIcon` assets (9x9) with `_MASK`-aware transparent rendering behavior.
+- Improved rapid mode-change rendering so the mode icon area is cleared before redraw, preventing overlapping pixels when toggled quickly.
+- Fixed an intermittent issue where the display could remain dark after switching from `OFF` to `ON` or `AUTO` by synchronizing brightness state transitions more explicitly.
+- Improved `AUTO` mode transition behavior after `OFF` by resetting auto-brightness timing/step state for faster re-evaluation.
+- Increased OTA progress bar inner width from `40` to `50` pixels.
+- Changed OTA screen progress update granularity from `%10` steps to `%2` steps so the bar fill progression better matches the wider progress area.
+
+This release is a patch-level UX and OTA progress visualization update on top of v3.2.0 runtime and OTA architecture improvements.
+
+# v3.2.0
+
+This release focuses on OTA architecture consolidation, non-blocking HTTP OTA flow, and clearer settings apply behavior.
+
+- Unified OTA firmware write/finalize/abort logic behind a shared `OtaRuntime` engine so browser upload OTA and HTTP URL OTA now use the same internal firmware stream pipeline.
+- Changed HTTP OTA by URL to a non-blocking staged flow (`BeginRequest`, `Downloading`, `Finalizing`) processed across loop iterations instead of a single blocking transfer call.
+- Removed aggressive multi-step restart chaining in OTA restart handling and switched to a single scheduled restart path for more deterministic runtime behavior.
+- Improved HTTP OTA request handling by increasing URL capacity and request parsing tolerance in the web action path.
+- Added stronger OTA URL handling in web actions with shared validation and safer buffer-based copying.
+- Refactored `AppRuntime` loop control into an explicit stage model to make startup, OTA-queued, OTA-in-progress, and normal runtime behavior easier to reason about.
+- Added settings apply classification support (`hot` vs `restart`) in the settings schema and settings apply pipeline.
+- Extended `POST /api/settings` responses with `changed`, `restartRequired`, and `applyMode` fields to make setting application behavior explicit for clients.
+- Updated the settings web UI save feedback to reflect actual backend apply results (hot-applied, restart-required, or no-op) instead of a single generic message.
+
+This release is a feature and maintainability update on top of the v3.1.x OTA and web management improvements.
+
+# v3.1.1
+
+This release focuses on HTTP OTA reliability and progress reporting fixes.
+
+- Fixed HTTP OTA progress calculation so the OTA progress bar no longer appears fully completed too early during download.
+- Changed HTTP OTA progress handling to hold at `99%` until firmware finalization succeeds, making the update UI feel more accurate.
+- Fixed an HTTP OTA completion issue where the device did not always restart properly after a successful update.
+- Improved the end-of-update flow by forcing the final OTA screen refresh before restart.
+- Added a small flush-and-delay step before reboot to make the successful HTTP OTA completion path more consistent.
+
+This release is a patch-level stabilization update on top of the new v3.1.0 web and OTA workflow improvements.
+
+# v3.1.0
+
+This release focuses on web firmware management, settings flow cleanup, and maintainability improvements across the web stack.
+
+- Added browser-based OTA firmware upload so a local `.bin` file can be selected from the settings page and installed directly from the device UI.
+- Kept HTTP OTA by URL and browser OTA upload side by side, making firmware updates more flexible during development and local use.
+- Simplified the settings frontend to use a single canonical API contract instead of legacy field aliases and compatibility mapping logic.
+- Removed legacy API compatibility from the active settings flow so the web UI now talks to a cleaner and more explicit JSON model.
+- Simplified the `POST /api/settings` contract to accept a single `settings` object format.
+- Cleaned up the `GET /api/state` payload by keeping canonical field names only.
+- Updated the firmware settings page to use the newer API contract consistently for booleans, numeric values, and OTA actions.
+- Centralized settings serialization, validation, and apply behavior behind a shared schema-driven implementation in `CWPreferences`.
+- Refactored `AppRuntime` into a clearer orchestration flow by separating startup, OTA, web, render, and display responsibilities into smaller internal steps.
+- Split `CWWebServer` responsibilities into separate implementation files for state endpoints, settings endpoints, and action/OTA endpoints, reducing file size and making the web layer easier to maintain.
+- Added documentation for the new upload-based OTA endpoint and aligned the local firmware README with the latest web/API behavior.
+
+This release is a feature and maintainability update on top of the v3.0.x API and runtime architecture.
 
 # v3.0.1
 
@@ -187,131 +268,3 @@ This release focuses on firmware stability, maintainability, and cleaner runtime
 - The display update pipeline was optimized to reduce rendering load and limit freezes.
 - Several redraw and compositing improvements were made to reduce flicker.
 - Overall, the Mario-themed firmware experience is now more polished, more animated, and better controlled in terms of system behavior.
-
-
-
-### ⏰ New Clockfaces
-Create a new custom Clockface starting from [here](https://github.com/jnthas/cw-cf-0x00) or take a look at the [Clock Club](https://github.com/jnthas/clock-club) and discover how to create new ones using just a JSON file with no coding.
-
-
-## Available clockfaces
-
-Mario Bros. Clock | Time in Words
-:----------------:|:------------:
-![Mario Bros. Clockface](https://github.com/jnthas/cw-cf-0x01/blob/main/cf_0x01_thumb.jpg "Mario Bros. Clockface") | ![Time in Words Clockface](https://github.com/jnthas/cw-cf-0x02/blob/main/cf_0x02_thumb.jpg "Time in Words Clockface") 
-https://github.com/jnthas/cw-cf-0x01 | https://github.com/jnthas/cw-cf-0x02
-
-World Map Clock | Castlevania Clock Tower
-:--------------:|:----------------------:
-![World Map Clockface](https://github.com/jnthas/cw-cf-0x03/blob/main/cf_0x03_thumb.jpg "World Map Clockface") | ![Castlevania Clockface](https://github.com/jnthas/cw-cf-0x04/blob/main/cf_0x04_thumb.jpg "Castlevania Clockface") 
-https://github.com/jnthas/cw-cf-0x03 | https://github.com/jnthas/cw-cf-0x04
-
-Pacman | Pokedex
-:-----:|:------:
-![Pacman Clockface](https://github.com/jnthas/cw-cf-0x05/blob/main/cf_0x05_thumb.jpg "Pacman Clockface") | ![Pokedex Clockface](https://github.com/jnthas/cw-cf-0x06/blob/main/cf_0x06_thumb.jpg "Pokedex Clockface") 
-https://github.com/jnthas/cw-cf-0x05 | https://github.com/jnthas/cw-cf-0x06
-
-Canvas | Description
-:-----:|:------:
-<img id="cw-cf-0x07" src="https://github.com/jnthas/cw-cf-0x07/raw/main/cf_0x07_thumb.jpg" width="200" alt="Canvas Clockface"> | Canvas is a special type of Clockface<br>that is capable of rendering different<br>themes described in a JSON file.<br>Find out more [here](https://github.com/jnthas/clockwise/wiki/Canvas-Clockface).
-https://github.com/jnthas/cw-cf-0x07 |
-
-
-## Driving the led matrix
-
-The three main hardware components of Clockwise are: 
-- HUB75/HUB75E compatible LED matrix 64x64
-- an ESP32; and 
-- a power supply of 3A or more
-
-With these components in hand, just follow the wiring instructions according to the library used, by default Clockwise uses the [ESP32-HUB75-MatrixPanel-I2S-DMA](https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA#2-wiring-esp32-with-the-led-matrix-panel) but any Adafruit GFX compatible library should work. The default wiring connection is showed below.
-
-![ESP32-HUB75-MatrixPanel-I2S-DMA wiring](https://github.com/jnthas/clockwise/blob/gh-pages/static/images/display_esp32_wiring_thumb.png "ESP32-HUB75-MatrixPanel-I2S-DMA wiring")
-
-[Full size](https://github.com/jnthas/clockwise/blob/gh-pages/static/images/display_esp32_wiring_bb.png)
-
-- In case you want something ready to use, I recommend Brian Lough's [ESP32 Trinity](https://github.com/witnessmenow/ESP32-Trinity), basically it's connecting the board and uploading the firmware, as simple as that.
-- If you want a designed PCB, I recommend this project from @Alexvanheu. It's compatible with HUB75/HUB75E led matrices and already tested with Clockwise https://github.com/Alexvanheu/Mario-Clock-PCB-ESP32
-- [ESP32 D1 Mini D1 RGB Matrix Shield](https://github.com/hallard/WeMos-Matrix-Shield-DMA) from @hallard is another option
-
-
-## How to change the clockface (web flashing)
-
-1) Go to https://clockwise.page/ and select the desired clockface
-2) Connect the ESP32 device on your computer's USB port 
-3) Click on the Flash button
-4) A dialog will appear, select the correct USB port and click in Connect ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step1.png))
-5) Select the INSTALL and INSTALL again ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step2.png))
-6) Wait while the flash tool uploads the firmware and finish ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step3.png))
-7) From the version 1.1.0, click in NEXT on step 6, Improv will start looking for available WiFi networks to connect
-8) Select your local network (must be a 2.4GHz) and enter with your password ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step4.png))
-9) If connection was successful, a message with button VISIT DEVICE will pop up and you can visit the Clockwise setting page  ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step5.png))
-
-
-### Configuring only WiFi
-After flashing your clockface, you will have a step to configure the WiFi. But in case you change your access point or password, you can set up just the WiFi connecting the Clockwise on USB, opening https://clockwise.page and clicking in Flash button, a window will pop up with a few options where you can re-configure your WiFi network ([screenshot](https://github.com/jnthas/clockwise/raw/gh-pages/static/images/usb-step6.png)) as well as open the Settings page to change preferences using button VISIT DEVICE. Remember: it is important to use a 2.4GHz WiFi, it will not work on 5GHz.
-
-
-### Settings page
-The settings page have the following options
-- *Timezone*: The timezone must be in the format America/New_York, America/Sao_Paulo, Europe/Paris, Asia/Dubai, etc. so that the clock can connect to an NTP server to get the correct time.
-- *NTP Server*: By default the clock will sync with `pool.ntp.org`, but you can configure your own (local) NTP server to be used.
-- *Swap Blue/Green pins*: Some displays have the RGB order different, in this case RBG. You can use this options to change the order.
-- *Display Bright*: Change the display bright.
-- *Use 24h format*: You can choose between 20:00 or 8:00PM in your device.
-- *Automatic Bright*: Once you connect a LDR in the ESP32, Clockwise will be able to control the display bright based on the ambient light. Check the [Wiki](
-https://github.com/jnthas/clockwise/wiki/Connecting-the-LDR) about that.
-- *NTP Server*: Configure your prefered NTP Server. You can use one of the [NTP Pool Project](https://www.ntppool.org/) pools or a local one. Default is `time.google.com`.
-- *LDR Pin*: The ESP32 GPIO pin where the LDR is connected to. The default is 35. There is a link there where you can read the current value of LDR and test if it's working.
-- *Posix Timezone String*: To avoid remote lookups of ezTime, provide a Posix string that corresponds to your timezone ([explanation](https://github.com/ropg/ezTime#timezones-1)). Leave empty to obtain this automatically from the server. 
-- *Display Rotation*: Allows you to rotate the display. This is useful if you need to adjust the direction in which cables protrude relative to the displayed image.
-
-## How to change the clockface (PlatformIO)
-
-Clockwise uses PlatformIO as IDE, so the configuration is already done if you use the same. The Clockwise structure consists mainly of three folders
-- clockfaces: contains the collection of available clockfaces. This folder is not included when compiling
-- lib: contains the basic code for Clockwise to work and in addition a symbolic link to the current clockface
-- src: contains the entry point for the clock code
-
-```
-.
-├── clockfaces
-│   ├── cw-cf-0x01
-│   ├── cw-cf-0x02
-│   └── cw-cf-0x03
-├── lib
-│   ├── cw-commons
-│   ├── cw-gfx-engine
-│   └── timeinwords -> ../clockfaces/cw-cf-0x02/
-└── src
-    └── main.cpp
-
-```
-Clone this repository and then run the following command to clone the clockface submodules 
-
-``.../clockwise$ git submodule update --init firmware/clockfaces``
-
-To create the symbolic link run the following command inside lib/ folder:
-
-``.../clockwise/firmware/lib$ ln -s ../clockfaces/cw-cf-0x02/ timeinwords``
-
-Or, if you prefer, you can get the same result by copying the desired clockface folder into lib/
-
-The same way as web flashing, when connecting for the first time you will have to configure the wifi, follow the instructions in Configuring WiFi section above. 
-
-## How to change the clockface (esp-idf)
-
-You can use the [official Esspressif IoT Development Framekwork (aka esp-idf)](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build and upload this project to an ESP32 device, including the [ESP32-Trinity board](https://esp32trinity.com/).
-
-### Install esp-idf
-Follow the [Step By Step installation instructions](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/#installation-step-by-step).
-
-### Setup the environment variables
-Follow the [instructions here](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/#step-4-set-up-the-environment-variables).
-
-### Clone and build this project
-* `git clone --recurse-submodules https://github.com/jnthas/clockwise.git`
-* `idf.py reconfigure`
-* `idf.py menuconfig` (select `Clockwise Configuration` and choose the clockface)
-* `idf.py flash`
-* `idf.py monitor`

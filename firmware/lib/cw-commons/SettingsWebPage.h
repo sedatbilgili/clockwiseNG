@@ -139,7 +139,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       <div class="row">
         <label for="bright">Ekran Parlakligi: <strong><output id="rangevalue">0</output></strong></label>
         <input id="bright" type="range" min="0" max="255" oninput="rangevalue.value=value">
-        <button type="button" onclick="updatePreference('displayBright', bright.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('displayBright', Number(bright.value))">Kaydet</button>
       </div>
       <div class="row">
         <label for="rotation">Ekran Yonu</label>
@@ -149,7 +149,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           <option value="2">180</option>
           <option value="3">270</option>
         </select>
-        <button type="button" onclick="updatePreference('displayRotation', rotation.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('displayRotation', Number(rotation.value))">Kaydet</button>
       </div>
       <div class="row">
         <label for="screenMode">Ekran Modu</label>
@@ -158,7 +158,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           <option value="1">Kapali</option>
           <option value="2">Acik</option>
         </select>
-        <button type="button" onclick="updatePreference('screenMode', screenMode.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('screenMode', Number(screenMode.value))">Kaydet</button>
       </div>
       <div class="row">
         <label for="characterSelection">Karakter</label>
@@ -166,7 +166,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           <option value="0">Mario</option>
           <option value="1">Luigi</option>
         </select>
-        <button type="button" onclick="updatePreference('charSel', characterSelection.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('character', Number(characterSelection.value))">Kaydet</button>
       </div>
     </div>
 
@@ -187,19 +187,26 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
         <button id="walkingMarioButton" type="button" onclick="saveWalkingMario()">Kaydet</button>
       </div>
       <div class="row">
+        <div class="checkbox">
+          <input id="goombaEnabled" type="checkbox">
+          <label for="goombaEnabled">Goomba cizimi acik</label>
+        </div>
+        <button type="button" onclick="saveGoombaEnabled()">Kaydet</button>
+      </div>
+      <div class="row">
         <label for="dynamicSkyMode">Dinamik Gokyuzu</label>
         <select id="dynamicSkyMode">
           <option value="0">Gunduz</option>
           <option value="1">Gece</option>
           <option value="2">Otomatik</option>
         </select>
-        <button type="button" onclick="updatePreference('dynSky', dynamicSkyMode.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('dynamicSkyMode', Number(dynamicSkyMode.value))">Kaydet</button>
       </div>
       <div class="row">
         <label for="cloudSpeed">Animasyon Hizi: <strong><output id="cloudSpeedValue">1,0 sn</output></strong></label>
         <input id="cloudSpeed" type="range" min="1" max="30" step="1" oninput="cloudSpeedValue.value=(value/10).toFixed(1).replace('.', ',') + ' sn'">
         <div class="hint">0,1 sn ile 3,0 sn arasi</div>
-        <button type="button" onclick="updatePreference('cloudSpeed', cloudSpeed.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('cloudSpeed', Number(cloudSpeed.value))">Kaydet</button>
       </div>
     </div>
 
@@ -210,7 +217,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           <input id="use24h" type="checkbox">
           <label for="use24h">24 saat formatini kullan</label>
         </div>
-        <button type="button" onclick="updatePreference('use24hFormat', Number(use24h.checked))">Kaydet</button>
+        <button type="button" onclick="updatePreference('use24hFormat', use24h.checked)">Kaydet</button>
       </div>
       <div class="row">
         <label for="tz">Zaman Dilimi</label>
@@ -264,7 +271,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
         <input id="ldrPin" type="number" min="0" max="39">
       </div>
       <div class="actions">
-        <button type="button" onclick="updatePreference('ldrPin', ldrPin.value)">Kaydet</button>
+        <button type="button" onclick="updatePreference('ldrPin', Number(ldrPin.value))">Kaydet</button>
         <button type="button" onclick="readPin(ldrPin.value)">Pin Degerini Oku</button>
       </div>
       <div class="hint">Okunan deger: <strong id="ldrPinRead">0</strong></div>
@@ -277,6 +284,11 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
         <input id="httpOtaUrl" type="url" placeholder="https://example.com/firmware.bin">
       </div>
       <button type="button" onclick="startHttpOta()">Indir ve Kur</button>
+      <div class="row" style="margin-top:12px;">
+        <label for="otaFile">Firmware Dosyasi (.bin)</label>
+        <input id="otaFile" type="file" accept=".bin,application/octet-stream">
+      </div>
+      <button type="button" onclick="uploadFirmwareFile()">Dosyayi Yukle ve Kur</button>
     </div>
 
   </div>

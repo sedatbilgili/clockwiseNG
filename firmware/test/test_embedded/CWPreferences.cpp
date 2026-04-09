@@ -17,8 +17,8 @@ void tearDown(void) {
 
 void test_function_should_get_default_values(void) {
   ClockwiseParams::getInstance()->load();
-  TEST_ASSERT_EQUAL_STRING("Asia/Istanbul", ClockwiseParams::getInstance()->timeZone.c_str());
-  TEST_ASSERT_EQUAL_STRING("time.google.com", ClockwiseParams::getInstance()->ntpServer.c_str());
+  TEST_ASSERT_EQUAL_STRING("Asia/Istanbul", ClockwiseParams::getInstance()->timeZone);
+  TEST_ASSERT_EQUAL_STRING("time.google.com", ClockwiseParams::getInstance()->ntpServer);
   TEST_ASSERT_EQUAL(16, ClockwiseParams::getInstance()->displayBright);
   TEST_ASSERT_EQUAL(true, ClockwiseParams::getInstance()->use24hFormat);
 }

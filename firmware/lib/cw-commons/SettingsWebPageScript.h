@@ -6,17 +6,18 @@ const char SETTINGS_PAGE_JS[] PROGMEM = R"JS(
 let pendingSaves = 0;
 let restartQueued = false;
 let pendingReadRequest = null;
+let settingsSchema = null;
 
 function formatKiB(bytes) {
   return (Number(bytes || 0) / 1024).toFixed(1) + " KB";
 }
 
 function buildSystemStatus(settings) {
-  const ramFree = Number(settings.ramfree || 0);
-  const ramTotal = Number(settings.ramtotal || 0);
-  const sketchUsed = Number(settings.sketchused || 0);
-  const sketchFree = Number(settings.sketchfree || 0);
-  const flashSize = Number(settings.flashsize || 0);
+  const ramFree = Number(settings.ramFree || 0);
+  const ramTotal = Number(settings.ramTotal || 0);
+  const sketchUsed = Number(settings.sketchUsed || 0);
+  const sketchFree = Number(settings.sketchFree || 0);
+  const flashSize = Number(settings.flashSize || 0);
   return "RAM: " + formatKiB(ramFree) + " bos / " + formatKiB(ramTotal) +
     " | FLASH: " + formatKiB(sketchUsed) + " kod / " + formatKiB(sketchFree) + " OTA bos" +
     " | Toplam Flash: " + formatKiB(flashSize);
@@ -32,14 +33,6 @@ function showStatus(message, isError) {
   }, 2500);
 }
 
-function normalizeSettings(settings) {
-  const normalized = {};
-  Object.keys(settings || {}).forEach((key) => {
-    normalized[String(key).toLowerCase()] = settings[key];
-  });
-  return normalized;
-}
-
 function setSelectValue(id, value) {
   const element = document.getElementById(id);
   if (element) {
@@ -47,34 +40,135 @@ function setSelectValue(id, value) {
   }
 }
 
+function getSchemaDefault(key, fallbackValue) {
+  if (!settingsSchema || !settingsSchema.settings || !settingsSchema.settings[key]) {
+    return fallbackValue;
+  }
+  const field = settingsSchema.settings[key];
+  if (!("default" in field)) {
+    return fallbackValue;
+  }
+  return field.default;
+}
+
+function getFirstDefined(settings, keys, fallbackValue) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(settings, key)) {
+      return settings[key];
+    }
+  }
+  return fallbackValue;
+}
+
+function toBoolean(value, fallbackValue) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
+      return true;
+    }
+    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no" || normalized === "") {
+      return false;
+    }
+  }
+  return fallbackValue;
+}
+
 function fillSettings(settings) {
-  document.getElementById("bright").value = settings.displaybright || 0;
-  document.getElementById("rangevalue").value = settings.displaybright || 0;
-  document.getElementById("use24h").checked = String(settings.use24hformat) === "1" || settings.use24hformat === true;
-  document.getElementById("tz").value = settings.timezone || "";
-  document.getElementById("ntp").value = settings.ntpserver || "";
-  document.getElementById("wifiSsid").value = settings.wifissid || "";
-  document.getElementById("autoBrightMin").value = settings.autobrightmin || 0;
-  document.getElementById("autoBrightMax").value = settings.autobrightmax || 0;
-  document.getElementById("animationEnabled").checked = String(settings.animenabled) === "1" || settings.animenabled === true;
-  document.getElementById("walkingMario").checked = String(settings.walkingmario) === "1" || settings.walkingmario === true;
-  document.getElementById("cloudSpeed").value = settings.cloudspeed || 10;
-  document.getElementById("cloudSpeedValue").value = (Number(settings.cloudspeed || 10) / 10).toFixed(1).replace(".", ",") + " sn";
-  document.getElementById("ldrPin").value = settings.ldrpin || 35;
-  document.getElementById("posixString").value = settings.manualposix || "";
-  setSelectValue("rotation", settings.displayrotation || 0);
-  setSelectValue("dynamicSkyMode", settings.dynsky || 0);
-  setSelectValue("screenMode", settings.screenmode || 0);
-  setSelectValue("characterSelection", settings.charsel || 0);
-  document.getElementById("ssid").textContent = "Wi-Fi: " + (settings.wifissid || "");
+  if (!settingsSchema || !settingsSchema.settings) {
+    showStatus("Ayar semasi yuklenemedi.", true);
+    return;
+  }
+  const animationEnabledValue = getFirstDefined(settings, ["animationEnabled", "animEnabled", "animationenabled", "animenabled"], getSchemaDefault("animationEnabled", true));
+  const walkingMarioValue = getFirstDefined(settings, ["walkingMario", "walkingmario"], getSchemaDefault("walkingMario", true));
+  const goombaEnabledValue = getFirstDefined(settings, ["goombaEnabled", "goombaenabled"], getSchemaDefault("goombaEnabled", true));
+
+  document.getElementById("bright").value = settings.displayBright || 0;
+  document.getElementById("rangevalue").value = settings.displayBright || 0;
+  document.getElementById("use24h").checked = Boolean(settings.use24hFormat);
+  document.getElementById("tz").value = settings.timeZone || "";
+  document.getElementById("ntp").value = settings.ntpServer || "";
+  document.getElementById("wifiSsid").value = settings.wifiSsid || "";
+  document.getElementById("autoBrightMin").value = settings.autoBrightMin || 0;
+  document.getElementById("autoBrightMax").value = settings.autoBrightMax || 0;
+  document.getElementById("animationEnabled").checked = toBoolean(animationEnabledValue, true);
+  document.getElementById("walkingMario").checked = toBoolean(walkingMarioValue, true);
+  document.getElementById("goombaEnabled").checked = toBoolean(goombaEnabledValue, true);
+  document.getElementById("cloudSpeed").value = settings.cloudSpeed || 10;
+  document.getElementById("cloudSpeedValue").value = (Number(settings.cloudSpeed || 10) / 10).toFixed(1).replace(".", ",") + " sn";
+  document.getElementById("ldrPin").value = settings.ldrPin || 35;
+  document.getElementById("posixString").value = settings.manualPosix || "";
+  setSelectValue("rotation", settings.displayRotation || 0);
+  setSelectValue("dynamicSkyMode", settings.dynamicSkyMode || 0);
+  setSelectValue("screenMode", settings.screenMode || 0);
+  setSelectValue("characterSelection", settings.character || 0);
+  document.getElementById("ssid").textContent = "Wi-Fi: " + (settings.wifiSsid || "");
   document.getElementById("fw-version").innerHTML =
-    "Firmware v" + (settings.cw_fw_version || "") + " - Sedat Bilgili" +
+    "Firmware v" + (settings.fwVersion || "") + " - Sedat Bilgili" +
     "<br><span class=\"muted\">" + buildSystemStatus(settings) + "</span>";
 
   syncWalkingMarioState();
 }
 
-function updatePreference(key, value) {
+function hasSchemaField(key) {
+  return Boolean(settingsSchema && settingsSchema.settings && settingsSchema.settings[key]);
+}
+
+function validateOutgoingSettings(settings) {
+  if (!settingsSchema || !settingsSchema.settings) {
+    return "settings schema not loaded";
+  }
+
+  for (const key of Object.keys(settings)) {
+    const field = settingsSchema.settings[key];
+    if (!field) {
+      return "unknown setting: " + key;
+    }
+
+    const value = settings[key];
+    if (field.type === "boolean" && typeof value !== "boolean") {
+      return "invalid boolean value for " + key;
+    }
+    if (field.type === "integer" && (!Number.isInteger(value))) {
+      return "invalid integer value for " + key;
+    }
+    if (field.type === "string" && typeof value !== "string") {
+      return "invalid string value for " + key;
+    }
+  }
+
+  return "";
+}
+
+function validateState(settings) {
+  if (!settingsSchema || !settingsSchema.settings) {
+    return;
+  }
+
+  const missingKeys = [];
+  for (const [key, field] of Object.entries(settingsSchema.settings)) {
+    if (field.inState && !(key in settings)) {
+      missingKeys.push(key);
+    }
+  }
+
+  if (missingKeys.length > 0) {
+    showStatus("Eksik state alanlari: " + missingKeys.join(", "), true);
+  }
+}
+
+function saveSettings(settings) {
+  const validationError = validateOutgoingSettings(settings);
+  if (validationError) {
+    showStatus(validationError, true);
+    return;
+  }
+
   pendingSaves++;
   const xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function () {
@@ -83,17 +177,43 @@ function updatePreference(key, value) {
     }
     pendingSaves = Math.max(0, pendingSaves - 1);
     if (this.status >= 200 && this.status < 300) {
-      showStatus("Kaydedildi! Cihazi yeniden baslatin!", false);
+      let payload = {};
+      try {
+        payload = JSON.parse(this.responseText || "{}");
+      } catch (err) {
+      }
+      if (payload.restartRequired) {
+        showStatus("Kaydedildi. Degisiklikler icin yeniden baslatin.", false);
+      } else if (payload.changed) {
+        showStatus("Kaydedildi ve aninda uygulandi.", false);
+      } else {
+        showStatus("Ayarlar zaten guncel.", false);
+      }
     } else {
-      showStatus("Kaydedilemedi.", true);
+      let message = "Kaydedilemedi.";
+      try {
+        const payload = JSON.parse(this.responseText || "{}");
+        if (payload.error) {
+          message = payload.error;
+        }
+      } catch (err) {
+      }
+      showStatus(message, true);
     }
     if (restartQueued && pendingSaves === 0) {
       restartQueued = false;
       restartDeviceNow();
     }
   };
-  xhr.open("POST", "/set?" + key + "=" + value);
-  xhr.send();
+  xhr.open("POST", "/api/settings");
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.send(JSON.stringify({ settings }));
+}
+
+function updatePreference(key, value) {
+  const settings = {};
+  settings[key] = value;
+  saveSettings(settings);
 }
 
 function saveAutoBrightness() {
@@ -103,7 +223,10 @@ function saveAutoBrightness() {
     showStatus("Minimum deger maksimum degerden kucuk olmali.", true);
     return;
   }
-  updatePreference("autoBright", autoBrightMin.value.padStart(4, "0") + "," + autoBrightMax.value.padStart(4, "0"));
+  saveSettings({
+    autoBrightMin: minValue,
+    autoBrightMax: maxValue
+  });
 }
 
 function saveAnimationEnabled() {
@@ -112,7 +235,7 @@ function saveAnimationEnabled() {
     document.getElementById("walkingMario").checked = false;
   }
   syncWalkingMarioState();
-  updatePreference("animEnabled", Number(enabled));
+  updatePreference("animationEnabled", enabled);
 }
 
 function saveWalkingMario() {
@@ -124,7 +247,12 @@ function saveWalkingMario() {
     showStatus("Bu ayar icin once genel animasyonu acin.", true);
     return;
   }
-  updatePreference("walkingMario", Number(walkingMario.checked));
+  updatePreference("walkingMario", walkingMario.checked);
+}
+
+function saveGoombaEnabled() {
+  const goombaEnabled = document.getElementById("goombaEnabled");
+  updatePreference("goombaEnabled", goombaEnabled.checked);
 }
 
 function syncWalkingMarioState() {
@@ -146,8 +274,10 @@ function saveWifiCredentials() {
     showStatus("SSID bos birakilamaz.", true);
     return;
   }
-  updatePreference("wifiSsid", ssid);
-  updatePreference("wifiPwd", password);
+  saveSettings({
+    wifiSsid: ssid,
+    wifiPwd: password
+  });
   restartQueued = true;
   showStatus("Wi-Fi bilgileri kaydediliyor, cihaz yeniden baslatilacak.", false);
 }
@@ -170,58 +300,111 @@ function startHttpOta() {
     if (this.status === 202) {
       showStatus("HTTP OTA baslatildi.", false);
     } else {
-      showStatus("HTTP OTA baslatilamadi.", true);
+      let message = "HTTP OTA baslatilamadi.";
+      try {
+        const payload = JSON.parse(this.responseText || "{}");
+        if (payload.error) {
+          message = payload.error;
+        }
+      } catch (err) {
+      }
+      showStatus(message, true);
     }
   };
-  xhr.open("POST", "/http-ota?url=" + encodeURIComponent(url));
-  xhr.send();
+  xhr.open("POST", "/api/actions?url=" + encodeURIComponent(url));
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.send(JSON.stringify({ action: "httpOta", url }));
 }
 
-function splitHeaders(request) {
-  const raw = request.getAllResponseHeaders().trim();
-  const headerMap = {};
-  if (!raw) {
-    return headerMap;
+function uploadFirmwareFile() {
+  const fileInput = document.getElementById("otaFile");
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) {
+    showStatus("Lutfen bir .bin dosyasi secin.", true);
+    return;
   }
-  raw.split(/[\r\n]+/).forEach((line) => {
-    const parts = line.split(": ");
-    const header = parts.shift().toLowerCase();
-    const value = parts.join(": ");
-    headerMap[header] = value;
-  });
-  return headerMap;
-}
 
-function requestGet(path, cb) {
-  if (pendingReadRequest && pendingReadRequest.readyState !== 4) {
-    pendingReadRequest.abort();
-  }
+  const formData = new FormData();
+  formData.append("firmware", file, file.name);
 
   const xhr = new XMLHttpRequest();
-  pendingReadRequest = xhr;
-  xhr.onreadystatechange = function () {
-    if (this.readyState === 4 && this.status === 204) {
-      cb(this);
-      pendingReadRequest = null;
-    } else if (this.readyState === 4) {
-      pendingReadRequest = null;
+  let lastProgressBucket = -1;
+  xhr.upload.onprogress = function (event) {
+    if (!event.lengthComputable) {
+      return;
     }
+    const percent = Math.max(0, Math.min(100, Math.round((event.loaded * 100) / event.total)));
+    const bucket = Math.floor(percent / 10);
+    if (bucket <= lastProgressBucket) {
+      return;
+    }
+    lastProgressBucket = bucket;
+    const shownPercent = Math.min(100, bucket * 10);
+    showStatus("Firmware yukleniyor: %" + shownPercent, false);
   };
-  xhr.open("GET", path + (path.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + Date.now(), true);
-  xhr.setRequestHeader("Cache-Control", "no-cache");
-  xhr.send();
-}
-
-function requestJson(path, cb) {
-  const xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function () {
     if (this.readyState !== 4) {
       return;
     }
-    if (this.status < 200 || this.status >= 300) {
-      showStatus("Ayarlar alinamadi.", true);
+
+    if (this.status >= 200 && this.status < 300) {
+      showStatus("Firmware yuklendi. Cihaz yeniden baslatiliyor.", false);
+      fileInput.value = "";
+    } else {
+      let message = "Firmware yuklenemedi.";
+      try {
+        const payload = JSON.parse(this.responseText || "{}");
+        if (payload.error) {
+          message = payload.error;
+        }
+      } catch (err) {
+      }
+      showStatus(message, true);
+    }
+  };
+  xhr.open("POST", "/api/upload-ota?size=" + encodeURIComponent(String(file.size)));
+  xhr.send(formData);
+}
+
+function requestJson(path, cb, options) {
+  const xhr = new XMLHttpRequest();
+  const method = (options && options.method) || "GET";
+  const body = options && options.body ? JSON.stringify(options.body) : null;
+
+  if (method === "GET") {
+    if (pendingReadRequest && pendingReadRequest.readyState !== 4) {
+      pendingReadRequest.abort();
+    }
+    pendingReadRequest = xhr;
+  }
+
+  xhr.onreadystatechange = function () {
+    if (this.readyState !== 4) {
       return;
     }
+
+    if (method === "GET") {
+      pendingReadRequest = null;
+    }
+
+    if (this.status < 200 || this.status >= 300) {
+      let message = "Istek basarisiz oldu.";
+      try {
+        const payload = JSON.parse(this.responseText || "{}");
+        if (payload.error) {
+          message = payload.error;
+        }
+      } catch (err) {
+      }
+      showStatus(message, true);
+      return;
+    }
+
+    if (!this.responseText) {
+      cb({});
+      return;
+    }
+
     try {
       cb(JSON.parse(this.responseText));
     } catch (err) {
@@ -229,21 +412,30 @@ function requestJson(path, cb) {
       showStatus("Ayar yaniti okunamadi. " + preview, true);
     }
   };
-  xhr.open("GET", path, true);
-  xhr.send();
+  const requestPath = method === "GET" ? path + (path.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + Date.now() : path;
+  xhr.open(method, requestPath, true);
+  if (method === "GET") {
+    xhr.setRequestHeader("Cache-Control", "no-cache");
+  } else {
+    xhr.setRequestHeader("Content-Type", "application/json");
+  }
+  xhr.send(body);
 }
 
 function readPin(pin) {
-  requestGet("/read?pin=" + pin, (req) => {
-    const headers = splitHeaders(req);
-    document.getElementById("ldrPinRead").textContent = headers["x-pin"] || "0";
+  requestJson("/api/actions", (payload) => {
+    document.getElementById("ldrPinRead").textContent = String(payload.value || 0);
+  }, {
+    method: "POST",
+    body: { action: "readPin", pin: Number(pin) }
   });
 }
 
 function restartDeviceNow() {
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/restart");
-  xhr.send();
+  requestJson("/api/actions", () => {}, {
+    method: "POST",
+    body: { action: "restart" }
+  });
 }
 
 function restartDevice() {
@@ -255,7 +447,11 @@ function restartDevice() {
   restartDeviceNow();
 }
 
-requestJson("/get", (settings) => {
-  fillSettings(normalizeSettings(settings));
+requestJson("/api/schema", (schema) => {
+  settingsSchema = schema;
+  requestJson("/api/state", (settings) => {
+    validateState(settings);
+    fillSettings(settings);
+  });
 });
 )JS";

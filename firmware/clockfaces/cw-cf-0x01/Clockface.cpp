@@ -34,6 +34,13 @@ static const int16_t PIPE_Y = 44;
 static const int16_t HILL_BASELINE_Y = 56;
 static const int16_t HILL_VIRTUAL_X = 5;
 static const int16_t BUSH_SWAY_CLEAR_MARGIN = 2;
+static const uint8_t GOOMBA_SIZE = 8;
+static const uint8_t GOOMBA_WALK_FRAME_COUNT = 2;
+static const int16_t GOOMBA_HALF_WIDTH = GOOMBA_SIZE / 2;
+static const unsigned short* const GOOMBA_WALK_FRAMES[GOOMBA_WALK_FRAME_COUNT] = {
+  goomba1,
+  goomba2
+};
 static const unsigned long GROUND_MOVE_INTERVAL = 200UL;
 static const uint8_t STAR_COUNT = 22;
 static const uint8_t STAR_X[STAR_COUNT] = {
@@ -51,6 +58,10 @@ static int16_t g_lastMarioX = 23;
 static int16_t g_lastMarioY = 40;
 static uint8_t g_lastMarioWidth = 13;
 static uint8_t g_lastMarioHeight = 16;
+static int16_t g_lastGoombaX = 3;
+static int16_t g_lastGoombaY = 40;
+static uint8_t g_lastGoombaWidth = GOOMBA_SIZE;
+static uint8_t g_lastGoombaHeight = GOOMBA_SIZE;
 static uint16_t marioCompositeRow[DISPLAY_WIDTH];
 
 static int16_t getVirtualScreenX(int16_t virtualX, uint8_t worldScrollOffset)
@@ -66,6 +77,32 @@ static bool intersectsScreen(int16_t x, int16_t width)
 static int16_t getHillY()
 {
   return HILL_BASELINE_Y - hill._height;
+}
+
+static int16_t getGoombaX()
+{
+  return (mario.x() / 2) - GOOMBA_HALF_WIDTH;
+}
+
+static int16_t getGoombaY()
+{
+  return DISPLAY_HEIGHT - ground._height - GOOMBA_SIZE;
+}
+
+static void drawGoombaSprite(const unsigned short *sprite, int16_t x, int16_t y)
+{
+  for (uint8_t row = 0; row < GOOMBA_SIZE; row++)
+  {
+    for (uint8_t col = 0; col < GOOMBA_SIZE; col++)
+    {
+      const uint16_t pixel = sprite[(row * GOOMBA_SIZE) + col];
+      if (pixel == _MASK)
+      {
+        continue;
+      }
+      Locator::getDisplay()->drawPixel(x + col, y + row, pixel);
+    }
+  }
 }
 
 static void drawWrappedObject(Adafruit_GFX &display, Object &object, int16_t x, int16_t y)
@@ -107,6 +144,7 @@ bool Clockface::isNightSky() const
 
 void Clockface::redrawScene()
 {
+  const bool goombaEnabled = ClockwiseParams::getInstance()->goombaEnabled;
   Locator::getDisplay()->setFont(&Super_Mario_Bros__24pt7b);
   Locator::getDisplay()->fillRect(0, 0, 64, 64, getActiveSkyColor());
 
@@ -116,10 +154,19 @@ void Clockface::redrawScene()
   drawBush();
   drawClouds();
   mario.redraw();
+  if (goombaEnabled)
+  {
+    drawGoombaSprite(GOOMBA_WALK_FRAMES[_goombaWalkFrame], getGoombaX(), getGoombaY());
+  }
   g_lastMarioX = mario.x();
   g_lastMarioY = mario.y();
   g_lastMarioWidth = mario.width();
   g_lastMarioHeight = mario.height();
+  g_lastGoombaX = getGoombaX();
+  g_lastGoombaY = getGoombaY();
+  g_lastGoombaWidth = goombaEnabled ? GOOMBA_SIZE : 0;
+  g_lastGoombaHeight = goombaEnabled ? GOOMBA_SIZE : 0;
+  _lastGoombaEnabled = goombaEnabled;
 }
 
 void Clockface::drawHill()
@@ -380,6 +427,33 @@ void Clockface::composeSceneRow(int16_t row, uint16_t *rowBuffer, bool includeMa
         rowBuffer[col] = marioPixel;
       }
     }
+
+    if (ClockwiseParams::getInstance()->goombaEnabled)
+    {
+      const int16_t goombaX = getGoombaX();
+      const int16_t goombaY = getGoombaY();
+      if (row >= goombaY && row < (goombaY + GOOMBA_SIZE))
+      {
+        const int16_t goombaRow = row - goombaY;
+        const unsigned short *goombaSprite = GOOMBA_WALK_FRAMES[_goombaWalkFrame];
+
+        for (int16_t col = 0; col < DISPLAY_WIDTH; col++)
+        {
+          const int16_t goombaCol = col - goombaX;
+          if (goombaCol < 0 || goombaCol >= GOOMBA_SIZE)
+          {
+            continue;
+          }
+
+          const uint16_t pixel = goombaSprite[(goombaRow * GOOMBA_SIZE) + goombaCol];
+          if (pixel == _MASK)
+          {
+            continue;
+          }
+          rowBuffer[col] = pixel;
+        }
+      }
+    }
   }
 }
 
@@ -426,6 +500,38 @@ void Clockface::updateGround()
   _groundScrollOffset = (_groundScrollOffset + 1) % ground._width;
   _worldScrollOffset = (_worldScrollOffset + 1) % VIRTUAL_DISPLAY_WIDTH;
   _landscapeDirty = true;
+}
+
+bool Clockface::updateGoombaAnimation()
+{
+  if (!ClockwiseParams::getInstance()->goombaEnabled)
+  {
+    if (_goombaWalkFrame != 0)
+    {
+      _goombaWalkFrame = 0;
+      return true;
+    }
+    return false;
+  }
+
+  if (!ClockwiseParams::getInstance()->walkingMario)
+  {
+    if (_goombaWalkFrame != 0)
+    {
+      _goombaWalkFrame = 0;
+      return true;
+    }
+    return false;
+  }
+
+  if (millis() - _lastGoombaFrameMillis < MARIO_WALK_FRAME_INTERVAL)
+  {
+    return false;
+  }
+
+  _lastGoombaFrameMillis = millis();
+  _goombaWalkFrame = (_goombaWalkFrame + 1) % GOOMBA_WALK_FRAME_COUNT;
+  return true;
 }
 
 void Clockface::updateStars()
@@ -523,6 +629,7 @@ void Clockface::updateClouds()
 void Clockface::setup(CWDateTime *dateTime) {
   _dateTime = dateTime;
   _animationEnabled = ClockwiseParams::getInstance()->animationEnabled;
+  _lastGoombaEnabled = ClockwiseParams::getInstance()->goombaEnabled;
   _lastSkyColor = resolveSkyColor();
   setActiveSkyColor(_lastSkyColor);
   _cloud1X = 0;
@@ -533,6 +640,7 @@ void Clockface::setup(CWDateTime *dateTime) {
   _cloud2MoveTick = 0;
   _groundScrollOffset = 0;
   _worldScrollOffset = 0;
+  _goombaWalkFrame = 0;
   for (uint8_t i = 0; i < STAR_COUNT; i++)
   {
     _starPaletteIndex[i] = random(0, sizeof(STAR_COLORS) / sizeof(STAR_COLORS[0]));
@@ -540,6 +648,7 @@ void Clockface::setup(CWDateTime *dateTime) {
   }
   _lastCloudMoveMillis = millis();
   _lastGroundMoveMillis = millis();
+  _lastGoombaFrameMillis = millis();
   _nextCloud1YOffsetMillis = millis() + (random(1, 7) * 1000UL);
   _nextBushSwayMillis = millis() + (random(2, 6) * ClockwiseParams::getInstance()->cloudSpeed * 100UL);
   _nextStarTwinkleMillis = millis() + random(250UL, 900UL);
@@ -560,19 +669,31 @@ void Clockface::setup(CWDateTime *dateTime) {
   hourBlock.init();
   minuteBlock.init();
   mario.init();
+  g_lastGoombaX = getGoombaX();
+  g_lastGoombaY = getGoombaY();
+  g_lastGoombaWidth = _lastGoombaEnabled ? GOOMBA_SIZE : 0;
+  g_lastGoombaHeight = _lastGoombaEnabled ? GOOMBA_SIZE : 0;
   drawClouds();
 }
 
 void Clockface::update()
 {
   bool shouldRedrawMario = false;
+  bool shouldRedrawGoomba = false;
   bool shouldRedrawSkyStrip = false;
+  const bool goombaEnabled = ClockwiseParams::getInstance()->goombaEnabled;
 
   hourBlock.update();
   minuteBlock.update();
   shouldRedrawSkyStrip = hourBlock.consumeDirty() || minuteBlock.consumeDirty();
   mario.update();
   shouldRedrawMario = mario.consumeDirty();
+  shouldRedrawGoomba = updateGoombaAnimation();
+  if (goombaEnabled != _lastGoombaEnabled)
+  {
+    shouldRedrawGoomba = true;
+    _lastGoombaEnabled = goombaEnabled;
+  }
   updateSkyTheme();
   updateStars();
   updateBush();
@@ -607,17 +728,25 @@ void Clockface::update()
     _landscapeDirty = false;
   }
 
-  if (shouldRedrawMario)
+  if (shouldRedrawMario || shouldRedrawGoomba)
   {
     int16_t currentMarioX = mario.x();
     int16_t currentMarioY = mario.y();
     uint8_t currentMarioWidth = mario.width();
     uint8_t currentMarioHeight = mario.height();
+    int16_t currentGoombaX = getGoombaX();
+    int16_t currentGoombaY = getGoombaY();
+    uint8_t currentGoombaWidth = goombaEnabled ? GOOMBA_SIZE : 0;
+    uint8_t currentGoombaHeight = goombaEnabled ? GOOMBA_SIZE : 0;
 
-    int16_t redrawX = min<int16_t>(g_lastMarioX, currentMarioX);
-    int16_t redrawY = min<int16_t>(g_lastMarioY, currentMarioY);
-    int16_t redrawRight = max<int16_t>(g_lastMarioX + g_lastMarioWidth, currentMarioX + currentMarioWidth);
-    int16_t redrawBottom = max<int16_t>(g_lastMarioY + g_lastMarioHeight, currentMarioY + currentMarioHeight);
+    int16_t redrawX = min<int16_t>(min<int16_t>(g_lastMarioX, currentMarioX), min<int16_t>(g_lastGoombaX, currentGoombaX));
+    int16_t redrawY = min<int16_t>(min<int16_t>(g_lastMarioY, currentMarioY), min<int16_t>(g_lastGoombaY, currentGoombaY));
+    int16_t redrawRight = max<int16_t>(
+      max<int16_t>(g_lastMarioX + g_lastMarioWidth, currentMarioX + currentMarioWidth),
+      max<int16_t>(g_lastGoombaX + g_lastGoombaWidth, currentGoombaX + currentGoombaWidth));
+    int16_t redrawBottom = max<int16_t>(
+      max<int16_t>(g_lastMarioY + g_lastMarioHeight, currentMarioY + currentMarioHeight),
+      max<int16_t>(g_lastGoombaY + g_lastGoombaHeight, currentGoombaY + currentGoombaHeight));
 
     redrawMarioArea(redrawX, redrawY, redrawRight - redrawX, redrawBottom - redrawY);
 
@@ -625,6 +754,10 @@ void Clockface::update()
     g_lastMarioY = currentMarioY;
     g_lastMarioWidth = currentMarioWidth;
     g_lastMarioHeight = currentMarioHeight;
+    g_lastGoombaX = currentGoombaX;
+    g_lastGoombaY = currentGoombaY;
+    g_lastGoombaWidth = currentGoombaWidth;
+    g_lastGoombaHeight = currentGoombaHeight;
   }
 }
 

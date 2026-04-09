@@ -15,7 +15,7 @@ PANEL_PROFILES = {
     },
     "oguzali": {
         "cw_panel_type": "OGUZALI_PANEL",
-        "upload_port": "192.168.1.133",
+        "upload_port": "192.168.1.132",
     },
     "alican": {
         "cw_panel_type": "ALICAN_PANEL",
