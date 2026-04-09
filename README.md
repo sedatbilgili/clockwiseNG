@@ -23,6 +23,90 @@ From there I started to further develop the platform to create the _Clockfaces_,
 
 ## Changelog
 
+# v3.2.3
+
+This release focuses on Goomba control, web settings stability, and API/web documentation alignment.
+
+- Added new `goombaEnabled` setting to API and web settings UI so Goomba drawing can be toggled on/off at runtime.
+- Updated Mario clockface render flow so Goomba is not drawn at all when disabled, including safe redraw/cleanup when the toggle changes.
+- Reduced Goomba render size from `16x16` to `8x8` to match the updated sprite set.
+- Improved settings page state parsing for animation toggles (`animationEnabled`, `walkingMario`, `goombaEnabled`) to better handle key/value format differences.
+- Fixed web settings load failures by increasing JSON response/schema capacities and reducing stack pressure in JSON response/schema handling.
+- Updated API documentation examples and settings reference with `goombaEnabled` usage examples.
+
+This release is a patch-level feature and stability update on top of v3.2.2.
+
+# v3.2.2
+
+This release focuses on OTA status UI polish and progress feedback consistency.
+
+- Replaced alternating OTA update icon frames with the new single `updateIcon` (16x16) asset.
+- Added 90-degree OTA icon rotation on each progress bucket step to keep update activity visually clear while using a single icon asset.
+- Adjusted OTA progress bar horizontal placement after the width increase so the bar is centered again on the display.
+- Reduced browser upload progress status noise by updating the web UI message at `%10` intervals instead of continuously/randomly.
+
+This release is a patch-level OTA UI and UX refinement update on top of v3.2.1.
+
+# v3.2.1
+
+This release focuses on display mode UX polish and OTA progress UI alignment improvements.
+
+- Added a temporary screen mode icon overlay shown for 10 seconds after mode changes, positioned near the top-left corner of the display.
+- Added support for the new `onIcon` and `autoIcon` assets (9x9) with `_MASK`-aware transparent rendering behavior.
+- Improved rapid mode-change rendering so the mode icon area is cleared before redraw, preventing overlapping pixels when toggled quickly.
+- Fixed an intermittent issue where the display could remain dark after switching from `OFF` to `ON` or `AUTO` by synchronizing brightness state transitions more explicitly.
+- Improved `AUTO` mode transition behavior after `OFF` by resetting auto-brightness timing/step state for faster re-evaluation.
+- Increased OTA progress bar inner width from `40` to `50` pixels.
+- Changed OTA screen progress update granularity from `%10` steps to `%2` steps so the bar fill progression better matches the wider progress area.
+
+This release is a patch-level UX and OTA progress visualization update on top of v3.2.0 runtime and OTA architecture improvements.
+
+# v3.2.0
+
+This release focuses on OTA architecture consolidation, non-blocking HTTP OTA flow, and clearer settings apply behavior.
+
+- Unified OTA firmware write/finalize/abort logic behind a shared `OtaRuntime` engine so browser upload OTA and HTTP URL OTA now use the same internal firmware stream pipeline.
+- Changed HTTP OTA by URL to a non-blocking staged flow (`BeginRequest`, `Downloading`, `Finalizing`) processed across loop iterations instead of a single blocking transfer call.
+- Removed aggressive multi-step restart chaining in OTA restart handling and switched to a single scheduled restart path for more deterministic runtime behavior.
+- Improved HTTP OTA request handling by increasing URL capacity and request parsing tolerance in the web action path.
+- Added stronger OTA URL handling in web actions with shared validation and safer buffer-based copying.
+- Refactored `AppRuntime` loop control into an explicit stage model to make startup, OTA-queued, OTA-in-progress, and normal runtime behavior easier to reason about.
+- Added settings apply classification support (`hot` vs `restart`) in the settings schema and settings apply pipeline.
+- Extended `POST /api/settings` responses with `changed`, `restartRequired`, and `applyMode` fields to make setting application behavior explicit for clients.
+- Updated the settings web UI save feedback to reflect actual backend apply results (hot-applied, restart-required, or no-op) instead of a single generic message.
+
+This release is a feature and maintainability update on top of the v3.1.x OTA and web management improvements.
+
+# v3.1.1
+
+This release focuses on HTTP OTA reliability and progress reporting fixes.
+
+- Fixed HTTP OTA progress calculation so the OTA progress bar no longer appears fully completed too early during download.
+- Changed HTTP OTA progress handling to hold at `99%` until firmware finalization succeeds, making the update UI feel more accurate.
+- Fixed an HTTP OTA completion issue where the device did not always restart properly after a successful update.
+- Improved the end-of-update flow by forcing the final OTA screen refresh before restart.
+- Added a small flush-and-delay step before reboot to make the successful HTTP OTA completion path more consistent.
+
+This release is a patch-level stabilization update on top of the new v3.1.0 web and OTA workflow improvements.
+
+# v3.1.0
+
+This release focuses on web firmware management, settings flow cleanup, and maintainability improvements across the web stack.
+
+- Added browser-based OTA firmware upload so a local `.bin` file can be selected from the settings page and installed directly from the device UI.
+- Kept HTTP OTA by URL and browser OTA upload side by side, making firmware updates more flexible during development and local use.
+- Simplified the settings frontend to use a single canonical API contract instead of legacy field aliases and compatibility mapping logic.
+- Removed legacy API compatibility from the active settings flow so the web UI now talks to a cleaner and more explicit JSON model.
+- Simplified the `POST /api/settings` contract to accept a single `settings` object format.
+- Cleaned up the `GET /api/state` payload by keeping canonical field names only.
+- Updated the firmware settings page to use the newer API contract consistently for booleans, numeric values, and OTA actions.
+- Centralized settings serialization, validation, and apply behavior behind a shared schema-driven implementation in `CWPreferences`.
+- Refactored `AppRuntime` into a clearer orchestration flow by separating startup, OTA, web, render, and display responsibilities into smaller internal steps.
+- Split `CWWebServer` responsibilities into separate implementation files for state endpoints, settings endpoints, and action/OTA endpoints, reducing file size and making the web layer easier to maintain.
+- Added documentation for the new upload-based OTA endpoint and aligned the local firmware README with the latest web/API behavior.
+
+This release is a feature and maintainability update on top of the v3.0.x API and runtime architecture.
+
 # v3.0.1
 
 This release focuses on web UI responsiveness, API performance, and stability fixes following the v3.0.0 API transition.
