@@ -11,11 +11,6 @@ Changelog is available at: https://github.com/sedatbilgili/clockwiseNG/CHANGELOG
 
 
 
-
-### ⏰ New Clockfaces
-Create a new custom Clockface starting from [here](https://github.com/jnthas/cw-cf-0x00) or take a look at the [Clock Club](https://github.com/jnthas/clock-club) and discover how to create new ones using just a JSON file with no coding.
-
-
 ## Driving the led matrix
 
 The three main hardware components of Clockwise are: 
