@@ -7,7 +7,7 @@ This repository builds on the upstream work and will gradually document the chan
 
 ## Changelog
 
-Changelog is available at: https://github.com/sedatbilgili/clockwiseNG/CHANGELOG.md
+Changelog is available at: https://github.com/sedatbilgili/clockwiseNG/blob/main/CHANGELOG.md
 
 
 
